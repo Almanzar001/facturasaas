@@ -57,6 +57,22 @@ function PaymentAccountsPage() {
     return Object.keys(newErrors).length === 0
   }, [formData.name, formData.type, formData.bank_name])
 
+  const handleCloseModal = useCallback(() => {
+    setShowModal(false)
+    setEditingAccount(null)
+    setFormData({
+      name: '',
+      type: 'caja_chica',
+      bank_name: '',
+      account_number: '',
+      account_holder: '',
+      initial_balance: 0,
+      is_default: false,
+      notes: ''
+    })
+    setErrors({})
+  }, [])
+
   const handleSubmit = useCallback(async () => {
     if (!validateForm()) return
 
@@ -121,22 +137,6 @@ function PaymentAccountsPage() {
       alert('Error al eliminar la cuenta. Puede tener transacciones asociadas.')
     }
   }, [deleteAccount])
-
-  const handleCloseModal = useCallback(() => {
-    setShowModal(false)
-    setEditingAccount(null)
-    setFormData({
-      name: '',
-      type: 'caja_chica',
-      bank_name: '',
-      account_number: '',
-      account_holder: '',
-      initial_balance: 0,
-      is_default: false,
-      notes: ''
-    })
-    setErrors({})
-  }, [])
 
   // Memoized balance calculations for performance
   const balanceTotals = useMemo(() => {
