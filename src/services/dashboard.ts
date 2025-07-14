@@ -95,16 +95,21 @@ export class DashboardService {
       console.error('Dashboard cache not available, falling back to individual queries')
       // Fallback to batch queries
       const [
-        invoiceStats,
-        clientStats,
-        productStats,
-        quoteStats
+        invoiceStatsResult,
+        clientStatsResult,
+        productStatsResult,
+        quoteStatsResult
       ] = await Promise.all([
-        supabase.from('invoice_statistics').select('*').single().then(r => r.data).catch(() => ({ total_revenue: 0, paid_invoices: 0, overdue_invoices: 0 })),
-        supabase.from('clients').select('id').then(r => ({ total: r.data?.length || 0 })).catch(() => ({ total: 0 })),
-        supabase.from('product_statistics').select('*').single().then(r => r.data).catch(() => ({ active_products: 0 })),
-        supabase.from('quotes_with_details').select('id').then(r => ({ total: r.data?.length || 0 })).catch(() => ({ total: 0 }))
+        supabase.from('invoice_statistics').select('*').single(),
+        supabase.from('clients').select('id'),
+        supabase.from('product_statistics').select('*').single(),
+        supabase.from('quotes_with_details').select('id')
       ])
+      
+      const invoiceStats = invoiceStatsResult.data || { total_revenue: 0, paid_invoices: 0, overdue_invoices: 0 }
+      const clientStats = { total: clientStatsResult.data?.length || 0 }
+      const productStats = productStatsResult.data || { active_products: 0 }
+      const quoteStats = { total: quoteStatsResult.data?.length || 0 }
       
       const totalRevenueData = invoiceStats.total_revenue || 0
       const totalExpensesData = 0 // Will be calculated from expense_statistics

@@ -459,7 +459,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
     }
   }
 
-  const totals = useMemo(() => calculateTotals(), [formData.items, formData.apply_tax, formData.tax_rate])
+  const totals = useMemo(() => calculateTotals(), [formData.items, formData.apply_tax])
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
