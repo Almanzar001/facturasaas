@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo, useMemo } from 'react'
 
 interface StatusBadgeProps {
   status: string
@@ -11,7 +11,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
   variant = 'general', 
   className = '' 
 }) => {
-  const getStatusConfig = () => {
+  const statusConfig = useMemo(() => {
     switch (variant) {
       case 'invoice':
         return {
@@ -36,13 +36,14 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
           completed: { color: 'bg-green-100 text-green-800', text: 'Completado' }
         }
     }
-  }
+  }, [variant])
 
-  const statusConfig = getStatusConfig()
-  const config = statusConfig[status as keyof typeof statusConfig] || {
-    color: 'bg-gray-100 text-gray-800',
-    text: status
-  }
+  const config = useMemo(() => {
+    return statusConfig[status as keyof typeof statusConfig] || {
+      color: 'bg-gray-100 text-gray-800',
+      text: status
+    }
+  }, [statusConfig, status])
 
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color} ${className}`}>
@@ -51,4 +52,4 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
   )
 }
 
-export default StatusBadge
+export default memo(StatusBadge)

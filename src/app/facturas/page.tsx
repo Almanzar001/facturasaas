@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { InvoiceService, Invoice } from '@/services/invoices'
 import { ClientService, Client } from '@/services/clients'
 import { PaymentService, Payment } from '@/services/payments'
+import { useInvoicesPagination } from '@/hooks/useInvoicesPagination'
 import Button from '@/components/Button'
 import Table from '@/components/Table'
 import Modal from '@/components/Modal'
@@ -13,7 +14,7 @@ import Card from '@/components/Card'
 import StatusBadge from '@/components/StatusBadge'
 import InvoiceForm from './InvoiceForm'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { generateInvoicePDF, downloadPDF, InvoicePDFData } from '@/pdf/generateInvoicePDF'
+import { generateInvoicePDFAsync } from '@/components/LazyPDF'
 import { SettingsService } from '@/services/settings'
 
 function InvoicesPageContent() {
@@ -152,8 +153,11 @@ function InvoicesPageContent() {
         company
       }
 
-      const pdfBytes = await generateInvoicePDF(invoiceData)
+      const pdfBytes = await generateInvoicePDFAsync(invoiceData)
       const filename = `Factura_${invoice.invoice_number}.pdf`
+      
+      // Dynamic download
+      const { downloadPDF } = await import('@/pdf/generateInvoicePDF')
       downloadPDF(pdfBytes, filename)
     } catch (error) {
       console.error('Error generating PDF:', error)
