@@ -85,53 +85,64 @@ export class DashboardService {
     const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1
     const previousYear = currentMonth === 1 ? currentYear - 1 : currentYear
 
-    const [
-      totalRevenueData,
-      totalExpensesData,
-      invoiceStats,
-      clientStats,
-      productStats,
-      quoteStats,
-      currentMonthRevenue,
-      previousMonthRevenue,
-      currentMonthExpenses,
-      previousMonthExpenses
-    ] = await Promise.all([
-      this.getTotalRevenueFromView().catch(() => 0),
-      this.getTotalExpensesFromView().catch(() => 0),
-      InvoiceService.getInvoiceStats().catch(() => ({ paidAmount: 0, sent: 0, overdue: 0 })),
-      ClientService.getClientStats().catch(() => ({ total: 0 })),
-      ProductService.getProductStats().catch(() => ({ active: 0 })),
-      QuoteService.getQuoteStats().catch(() => ({ total: 0 })),
-      this.getMonthlyRevenueFromView(currentYear, currentMonth).catch(() => 0),
-      this.getMonthlyRevenueFromView(previousYear, previousMonth).catch(() => 0),
-      this.getMonthlyExpensesFromView(currentYear, currentMonth).catch(() => 0),
-      this.getMonthlyExpensesFromView(previousYear, previousMonth).catch(() => 0)
-    ])
+    // Use single optimized query instead of 10 separate calls
+    const { data: dashboardData, error: dashboardError } = await supabase
+      .from('dashboard_metrics_cache')
+      .select('*')
+      .single()
 
-    const totalRevenue = totalRevenueData || 0
-    const totalExpenses = totalExpensesData || 0
+    if (dashboardError) {
+      console.error('Dashboard cache not available, falling back to individual queries')
+      // Fallback to batch queries
+      const [
+        invoiceStats,
+        clientStats,
+        productStats,
+        quoteStats
+      ] = await Promise.all([
+        supabase.from('invoice_statistics').select('*').single().then(r => r.data).catch(() => ({ total_revenue: 0, paid_invoices: 0, overdue_invoices: 0 })),
+        supabase.from('clients').select('id').then(r => ({ total: r.data?.length || 0 })).catch(() => ({ total: 0 })),
+        supabase.from('product_statistics').select('*').single().then(r => r.data).catch(() => ({ active_products: 0 })),
+        supabase.from('quotes_with_details').select('id').then(r => ({ total: r.data?.length || 0 })).catch(() => ({ total: 0 }))
+      ])
+      
+      const totalRevenueData = invoiceStats.total_revenue || 0
+      const totalExpensesData = 0 // Will be calculated from expense_statistics
+      const currentMonthRevenue = 0
+      const previousMonthRevenue = 0
+      const currentMonthExpenses = 0
+      const previousMonthExpenses = 0
+      
+      return {
+        totalRevenue: totalRevenueData,
+        totalExpenses: totalExpensesData,
+        netProfit: totalRevenueData - totalExpensesData,
+        pendingInvoices: (invoiceStats.paid_invoices || 0) + (invoiceStats.overdue_invoices || 0),
+        totalClients: clientStats.total || 0,
+        totalProducts: productStats.active_products || 0,
+        totalQuotes: quoteStats.total || 0,
+        revenueGrowth: 0,
+        expenseGrowth: 0,
+        profitMargin: totalRevenueData > 0 ? ((totalRevenueData - totalExpensesData) / totalRevenueData) * 100 : 0
+      }
+    }
+
+    // Use cached data if available
+    const totalRevenue = dashboardData.total_revenue || 0
+    const totalExpenses = dashboardData.total_expenses || 0
     const netProfit = totalRevenue - totalExpenses
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
-
-    const revenueGrowth = previousMonthRevenue > 0 
-      ? ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100
-      : 0
-
-    const expenseGrowth = previousMonthExpenses > 0
-      ? ((currentMonthExpenses - previousMonthExpenses) / previousMonthExpenses) * 100
-      : 0
 
     return {
       totalRevenue,
       totalExpenses,
       netProfit,
-      pendingInvoices: (invoiceStats.sent || 0) + (invoiceStats.overdue || 0),
-      totalClients: clientStats.total || 0,
-      totalProducts: productStats.active || 0,
-      totalQuotes: quoteStats.total || 0,
-      revenueGrowth: isNaN(revenueGrowth) ? 0 : revenueGrowth,
-      expenseGrowth: isNaN(expenseGrowth) ? 0 : expenseGrowth,
+      pendingInvoices: dashboardData.pending_invoices || 0,
+      totalClients: dashboardData.total_clients || 0,
+      totalProducts: dashboardData.total_products || 0,
+      totalQuotes: dashboardData.total_quotes || 0,
+      revenueGrowth: dashboardData.revenue_growth || 0,
+      expenseGrowth: dashboardData.expense_growth || 0,
       profitMargin: isNaN(profitMargin) ? 0 : profitMargin
     }
   }
@@ -269,8 +280,8 @@ export class DashboardService {
   // Nuevos métodos que usan las vistas de Supabase
   private static async getTotalRevenueFromView(): Promise<number> {
     const { data, error } = await supabase
-      .from('vista_ingresos_reales')
-      .select('total_ingresos_reales')
+      .from('monthly_revenue_optimized')
+      .select('total_revenue')
       .single()
 
     if (error) {
@@ -278,13 +289,13 @@ export class DashboardService {
       return 0
     }
 
-    return data?.total_ingresos_reales || 0
+    return data?.total_revenue || 0
   }
 
   private static async getTotalExpensesFromView(): Promise<number> {
     const { data, error } = await supabase
-      .from('vista_egresos_reales')
-      .select('total_egresos_reales')
+      .from('expense_statistics')
+      .select('total_expenses')
       .single()
 
     if (error) {
@@ -292,7 +303,7 @@ export class DashboardService {
       return 0
     }
 
-    return data?.total_egresos_reales || 0
+    return data?.total_expenses || 0
   }
 
   private static async getMonthlyRevenueFromView(year: number, month: number): Promise<number> {

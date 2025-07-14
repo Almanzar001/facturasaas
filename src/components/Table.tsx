@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo, useMemo } from 'react'
 import LoadingSpinner from './LoadingSpinner'
 
 interface TableColumn<T> {
@@ -19,6 +19,36 @@ interface TableProps<T> {
   className?: string
 }
 
+const TableRow = memo(function TableRow<T>({ row, columns, index, onRowClick, alignClasses, getValue }: {
+  row: T
+  columns: TableColumn<T>[]
+  index: number
+  onRowClick?: (row: T, index: number) => void
+  alignClasses: Record<string, string>
+  getValue: (row: T, key: keyof T | string) => any
+}) {
+  return (
+    <tr
+      className={`hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
+      onClick={() => onRowClick?.(row, index)}
+    >
+      {columns.map((column) => (
+        <td
+          key={String(column.key)}
+          className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${
+            alignClasses[column.align || 'left']
+          }`}
+        >
+          {column.render 
+            ? column.render(getValue(row, column.key), row, index)
+            : getValue(row, column.key)
+          }
+        </td>
+      ))}
+    </tr>
+  )
+})
+
 function Table<T extends Record<string, any>>({
   data,
   columns,
@@ -34,11 +64,25 @@ function Table<T extends Record<string, any>>({
     return row[key as keyof T]
   }
 
-  const alignClasses = {
+  const alignClasses = useMemo(() => ({
     left: 'text-left',
     center: 'text-center',
     right: 'text-right'
-  }
+  }), [])
+
+  const memoizedRows = useMemo(() => {
+    return data.map((row, index) => (
+      <TableRow
+        key={index}
+        row={row}
+        columns={columns}
+        index={index}
+        onRowClick={onRowClick}
+        alignClasses={alignClasses}
+        getValue={getValue}
+      />
+    ))
+  }, [data, columns, onRowClick, alignClasses])
 
   if (loading) {
     return (
@@ -77,27 +121,7 @@ function Table<T extends Record<string, any>>({
               </td>
             </tr>
           ) : (
-            data.map((row, index) => (
-              <tr
-                key={index}
-                className={`hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
-                onClick={() => onRowClick?.(row, index)}
-              >
-                {columns.map((column) => (
-                  <td
-                    key={String(column.key)}
-                    className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${
-                      alignClasses[column.align || 'left']
-                    }`}
-                  >
-                    {column.render 
-                      ? column.render(getValue(row, column.key), row, index)
-                      : getValue(row, column.key)
-                    }
-                  </td>
-                ))}
-              </tr>
-            ))
+            memoizedRows
           )}
         </tbody>
       </table>
@@ -105,4 +129,4 @@ function Table<T extends Record<string, any>>({
   )
 }
 
-export default Table
+export default memo(Table)

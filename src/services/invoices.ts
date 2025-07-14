@@ -131,8 +131,8 @@ export class InvoiceService {
 
   static async getById(id: string): Promise<Invoice | null> {
     const { data, error } = await supabase
-      .from('invoices')
-      .select('*, client:clients(*), items:invoice_items(*)')
+      .from('invoices_with_details')
+      .select('*')
       .eq('id', id)
       .single()
 
@@ -289,8 +289,8 @@ export class InvoiceService {
 
   static async getByClient(clientId: string): Promise<Invoice[]> {
     const { data, error } = await supabase
-      .from('invoices')
-      .select('*, client:clients(*), items:invoice_items(*)')
+      .from('invoices_with_details')
+      .select('*')
       .eq('client_id', clientId)
       .order('date', { ascending: false })
 

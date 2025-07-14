@@ -170,26 +170,43 @@ export class ProductService {
     averagePrice: number
   }> {
     const { data, error } = await supabase
-      .from('products')
-      .select('id, is_active, price, category')
+      .from('product_statistics')
+      .select('*')
+      .single()
 
     if (error) {
-      throw new Error(`Error fetching product stats: ${error.message}`)
+      console.error('Product statistics view not available, falling back to calculation')
+      // Fallback to old method if view doesn't exist
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('id, is_active, price, category')
+
+      if (productsError) {
+        throw new Error(`Error fetching product stats: ${productsError.message}`)
+      }
+
+      const products = productsData || []
+      const categories = new Set(products.map(p => p.category).filter(Boolean))
+      const activePrices = products.filter(p => p.is_active).map(p => p.price)
+      const averagePrice = activePrices.length > 0 
+        ? activePrices.reduce((sum, price) => sum + price, 0) / activePrices.length
+        : 0
+
+      return {
+        total: products.length,
+        active: products.filter(p => p.is_active).length,
+        inactive: products.filter(p => !p.is_active).length,
+        categories: categories.size,
+        averagePrice
+      }
     }
 
-    const products = data || []
-    const categories = new Set(products.map(p => p.category).filter(Boolean))
-    const activePrices = products.filter(p => p.is_active).map(p => p.price)
-    const averagePrice = activePrices.length > 0 
-      ? activePrices.reduce((sum, price) => sum + price, 0) / activePrices.length
-      : 0
-
     return {
-      total: products.length,
-      active: products.filter(p => p.is_active).length,
-      inactive: products.filter(p => !p.is_active).length,
-      categories: categories.size,
-      averagePrice
+      total: data.total_products || 0,
+      active: data.active_products || 0,
+      inactive: data.inactive_products || 0,
+      categories: data.total_categories || 0,
+      averagePrice: data.average_price || 0
     }
   }
 

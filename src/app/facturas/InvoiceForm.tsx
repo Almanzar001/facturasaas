@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { InvoiceService, Invoice, CreateInvoiceData } from '@/services/invoices'
 import { ClientService, Client } from '@/services/clients'
 import { ProductService, Product } from '@/services/products'
@@ -459,7 +459,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
     }
   }
 
-  const totals = calculateTotals()
+  const totals = useMemo(() => calculateTotals(), [formData.items, formData.apply_tax, formData.tax_rate])
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
