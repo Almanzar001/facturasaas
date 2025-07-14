@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import Card, { CardHeader, CardTitle, CardContent } from '@/components/Card'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
@@ -21,17 +21,41 @@ function AccountPage() {
     confirm_password: ''
   })
   const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({})
+  const [profileError, setProfileError] = useState<string>('')
+  const [passwordError, setPasswordError] = useState<string>('')
+  const [profileSuccess, setProfileSuccess] = useState<string>('')
+  const [passwordSuccess, setPasswordSuccess] = useState<string>('')
+
+  // Memoized initial profile data
+  const initialProfileData = useMemo(() => ({
+    email: user?.email || '',
+    full_name: (user as any)?.user_metadata?.full_name || ''
+  }), [user])
+
+  // Clear success messages after 3 seconds
+  useEffect(() => {
+    if (profileSuccess) {
+      const timer = setTimeout(() => setProfileSuccess(''), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [profileSuccess])
 
   useEffect(() => {
-    if (user) {
-      setProfileData({
-        email: user.email || '',
-        full_name: (user as any).user_metadata?.full_name || ''
-      })
+    if (passwordSuccess) {
+      const timer = setTimeout(() => setPasswordSuccess(''), 3000)
+      return () => clearTimeout(timer)
     }
-  }, [user])
+  }, [passwordSuccess])
 
-  const validatePasswordForm = (): boolean => {
+  // Update profile data when user changes
+  useEffect(() => {
+    if (user) {
+      setProfileData(initialProfileData)
+    }
+  }, [user, initialProfileData])
+
+  // Memoized password validation
+  const validatePasswordForm = useCallback((): boolean => {
     const errors: Record<string, string> = {}
 
     if (!passwordData.current_password) {
@@ -52,11 +76,36 @@ function AccountPage() {
 
     setPasswordErrors(errors)
     return Object.keys(errors).length === 0
-  }
+  }, [passwordData])
 
-  const handleUpdateProfile = async () => {
+  // Memoized check if profile has changes
+  const hasProfileChanges = useMemo(() => {
+    return profileData.full_name !== initialProfileData.full_name
+  }, [profileData.full_name, initialProfileData.full_name])
+
+  // Memoized check if password form is valid
+  const isPasswordFormValid = useMemo(() => {
+    return passwordData.current_password && 
+           passwordData.new_password && 
+           passwordData.confirm_password &&
+           passwordData.new_password === passwordData.confirm_password &&
+           passwordData.new_password.length >= 6
+  }, [passwordData])
+
+  // Memoized formatted dates
+  const formattedDates = useMemo(() => ({
+    updated_at: user?.updated_at ? new Date(user.updated_at).toLocaleString('es-DO') : 'N/A',
+    created_at: user?.created_at ? new Date(user.created_at).toLocaleString('es-DO') : 'N/A'
+  }), [user?.updated_at, user?.created_at])
+
+  // Optimized profile update handler
+  const handleUpdateProfile = useCallback(async () => {
+    if (!hasProfileChanges) return
+
     try {
       setLoading(true)
+      setProfileError('')
+      setProfileSuccess('')
       
       const { error } = await supabase.auth.updateUser({
         data: { full_name: profileData.full_name }
@@ -64,20 +113,23 @@ function AccountPage() {
 
       if (error) throw error
 
-      alert('Perfil actualizado exitosamente')
+      setProfileSuccess('Perfil actualizado exitosamente')
     } catch (error: any) {
       console.error('Error updating profile:', error)
-      alert('Error al actualizar el perfil')
+      setProfileError('Error al actualizar el perfil: ' + (error.message || 'Error desconocido'))
     } finally {
       setLoading(false)
     }
-  }
+  }, [profileData.full_name, hasProfileChanges])
 
-  const handleChangePassword = async () => {
+  // Optimized password change handler
+  const handleChangePassword = useCallback(async () => {
     if (!validatePasswordForm()) return
 
     try {
       setLoading(true)
+      setPasswordError('')
+      setPasswordSuccess('')
 
       // Verificar contraseña actual
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -105,14 +157,45 @@ function AccountPage() {
       })
       setPasswordErrors({})
 
-      alert('Contraseña cambiada exitosamente')
+      setPasswordSuccess('Contraseña cambiada exitosamente')
     } catch (error: any) {
       console.error('Error changing password:', error)
-      alert('Error al cambiar la contraseña')
+      setPasswordError('Error al cambiar la contraseña: ' + (error.message || 'Error desconocido'))
     } finally {
       setLoading(false)
     }
-  }
+  }, [validatePasswordForm, user?.email, passwordData.current_password, passwordData.new_password])
+
+  // Optimized profile input handlers
+  const handleProfileNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfileData(prev => ({ ...prev, full_name: e.target.value }))
+    setProfileError('')
+  }, [])
+
+  // Optimized password input handlers
+  const handleCurrentPasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPasswordData(prev => ({ ...prev, current_password: e.target.value }))
+    setPasswordErrors(prev => ({ ...prev, current_password: '' }))
+    setPasswordError('')
+  }, [])
+
+  const handleNewPasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPasswordData(prev => ({ ...prev, new_password: e.target.value }))
+    setPasswordErrors(prev => ({ ...prev, new_password: '' }))
+    setPasswordError('')
+  }, [])
+
+  const handleConfirmPasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPasswordData(prev => ({ ...prev, confirm_password: e.target.value }))
+    setPasswordErrors(prev => ({ ...prev, confirm_password: '' }))
+    setPasswordError('')
+  }, [])
+
+  // Optimized form submit handler
+  const handlePasswordFormSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault()
+    handleChangePassword()
+  }, [handleChangePassword])
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -132,6 +215,20 @@ function AccountPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {/* Profile Error Message */}
+            {profileError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+                {profileError}
+              </div>
+            )}
+
+            {/* Profile Success Message */}
+            {profileSuccess && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-md text-green-700 text-sm">
+                {profileSuccess}
+              </div>
+            )}
+
             <Input
               label="Email"
               type="email"
@@ -143,7 +240,7 @@ function AccountPage() {
             <Input
               label="Nombre Completo"
               value={profileData.full_name}
-              onChange={(e) => setProfileData({ ...profileData, full_name: e.target.value })}
+              onChange={handleProfileNameChange}
               placeholder="Tu nombre completo"
             />
 
@@ -151,7 +248,7 @@ function AccountPage() {
               <Button
                 onClick={handleUpdateProfile}
                 loading={loading}
-                disabled={loading}
+                disabled={loading || !hasProfileChanges}
               >
                 Actualizar Perfil
               </Button>
@@ -166,12 +263,26 @@ function AccountPage() {
           <CardTitle>Cambiar Contraseña</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={(e) => { e.preventDefault(); handleChangePassword(); }} className="space-y-4">
+          <form onSubmit={handlePasswordFormSubmit} className="space-y-4">
+            {/* Password Error Message */}
+            {passwordError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+                {passwordError}
+              </div>
+            )}
+
+            {/* Password Success Message */}
+            {passwordSuccess && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-md text-green-700 text-sm">
+                {passwordSuccess}
+              </div>
+            )}
+
             <Input
               label="Contraseña Actual"
               type="password"
               value={passwordData.current_password}
-              onChange={(e) => setPasswordData({ ...passwordData, current_password: e.target.value })}
+              onChange={handleCurrentPasswordChange}
               error={passwordErrors.current_password}
               required
             />
@@ -181,7 +292,7 @@ function AccountPage() {
                 label="Nueva Contraseña"
                 type="password"
                 value={passwordData.new_password}
-                onChange={(e) => setPasswordData({ ...passwordData, new_password: e.target.value })}
+                onChange={handleNewPasswordChange}
                 error={passwordErrors.new_password}
                 helperText="Mínimo 6 caracteres"
                 required
@@ -191,7 +302,7 @@ function AccountPage() {
                 label="Confirmar Nueva Contraseña"
                 type="password"
                 value={passwordData.confirm_password}
-                onChange={(e) => setPasswordData({ ...passwordData, confirm_password: e.target.value })}
+                onChange={handleConfirmPasswordChange}
                 error={passwordErrors.confirm_password}
                 required
               />
@@ -201,7 +312,7 @@ function AccountPage() {
               <Button
                 type="submit"
                 loading={loading}
-                disabled={loading}
+                disabled={loading || !isPasswordFormValid}
               >
                 Cambiar Contraseña
               </Button>
@@ -223,11 +334,11 @@ function AccountPage() {
             </div>
             <div className="flex justify-between">
               <span>Última actualización:</span>
-              <span>{user?.updated_at ? new Date(user.updated_at).toLocaleString('es-DO') : 'N/A'}</span>
+              <span>{formattedDates.updated_at}</span>
             </div>
             <div className="flex justify-between">
               <span>Cuenta creada:</span>
-              <span>{user?.created_at ? new Date(user.created_at).toLocaleString('es-DO') : 'N/A'}</span>
+              <span>{formattedDates.created_at}</span>
             </div>
           </div>
         </CardContent>

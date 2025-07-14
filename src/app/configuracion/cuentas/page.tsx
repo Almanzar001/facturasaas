@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import { PaymentAccount, PaymentAccountService, CreatePaymentAccountData } from '@/services/paymentAccounts'
+import { usePaymentAccounts } from '@/hooks/usePaymentAccounts'
 import Card, { CardHeader, CardTitle, CardContent } from '@/components/Card'
 import Button from '@/components/Button'
 import Table from '@/components/Table'
@@ -15,8 +16,17 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import { withAuth } from '@/contexts/AuthContext'
 
 function PaymentAccountsPage() {
-  const [accounts, setAccounts] = useState<PaymentAccount[]>([])
-  const [loading, setLoading] = useState(true)
+  const { 
+    accounts, 
+    loading, 
+    error, 
+    createAccount, 
+    updateAccount, 
+    deleteAccount, 
+    toggleAccountActive,
+    setDefaultAccount
+  } = usePaymentAccounts()
+
   const [showModal, setShowModal] = useState(false)
   const [editingAccount, setEditingAccount] = useState<PaymentAccount | null>(null)
   const [formData, setFormData] = useState<CreatePaymentAccountData>({
@@ -32,23 +42,7 @@ function PaymentAccountsPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    loadAccounts()
-  }, [])
-
-  const loadAccounts = async () => {
-    try {
-      setLoading(true)
-      const data = await PaymentAccountService.getAll(true)
-      setAccounts(data)
-    } catch (error) {
-      console.error('Error loading accounts:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const validateForm = (): boolean => {
+  const validateForm = useCallback((): boolean => {
     const newErrors: Record<string, string> = {}
 
     if (!formData.name.trim()) {
@@ -61,21 +55,20 @@ function PaymentAccountsPage() {
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
-  }
+  }, [formData.name, formData.type, formData.bank_name])
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!validateForm()) return
 
     try {
       setSaving(true)
       
       if (editingAccount) {
-        await PaymentAccountService.update(editingAccount.id, formData)
+        await updateAccount(editingAccount.id, formData)
       } else {
-        await PaymentAccountService.create(formData)
+        await createAccount(formData)
       }
 
-      await loadAccounts()
       handleCloseModal()
     } catch (error) {
       console.error('Error saving account:', error)
@@ -83,9 +76,9 @@ function PaymentAccountsPage() {
     } finally {
       setSaving(false)
     }
-  }
+  }, [validateForm, editingAccount, formData, updateAccount, createAccount, handleCloseModal])
 
-  const handleEdit = (account: PaymentAccount) => {
+  const handleEdit = useCallback((account: PaymentAccount) => {
     setEditingAccount(account)
     setFormData({
       name: account.name,
@@ -98,43 +91,38 @@ function PaymentAccountsPage() {
       notes: account.notes || ''
     })
     setShowModal(true)
-  }
+  }, [])
 
-  const handleToggleActive = async (account: PaymentAccount) => {
+  const handleToggleActive = useCallback(async (account: PaymentAccount) => {
     try {
-      await PaymentAccountService.update(account.id, {
-        is_active: !account.is_active
-      })
-      await loadAccounts()
+      await toggleAccountActive(account.id)
     } catch (error) {
       console.error('Error toggling account status:', error)
       alert('Error al cambiar el estado de la cuenta')
     }
-  }
+  }, [toggleAccountActive])
 
-  const handleSetDefault = async (account: PaymentAccount) => {
+  const handleSetDefault = useCallback(async (account: PaymentAccount) => {
     try {
-      await PaymentAccountService.setDefault(account.id)
-      await loadAccounts()
+      await setDefaultAccount(account.id)
     } catch (error) {
       console.error('Error setting default account:', error)
       alert('Error al establecer cuenta por defecto')
     }
-  }
+  }, [setDefaultAccount])
 
-  const handleDelete = async (account: PaymentAccount) => {
+  const handleDelete = useCallback(async (account: PaymentAccount) => {
     if (!confirm(`¿Estás seguro de eliminar la cuenta "${account.name}"?`)) return
 
     try {
-      await PaymentAccountService.delete(account.id)
-      await loadAccounts()
+      await deleteAccount(account.id)
     } catch (error) {
       console.error('Error deleting account:', error)
       alert('Error al eliminar la cuenta. Puede tener transacciones asociadas.')
     }
-  }
+  }, [deleteAccount])
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setShowModal(false)
     setEditingAccount(null)
     setFormData({
@@ -148,7 +136,23 @@ function PaymentAccountsPage() {
       notes: ''
     })
     setErrors({})
-  }
+  }, [])
+
+  // Memoized balance calculations for performance
+  const balanceTotals = useMemo(() => {
+    const activeAccounts = accounts.filter(a => a.is_active)
+    
+    return {
+      totalCajas: activeAccounts
+        .filter(a => a.type === 'caja_chica')
+        .reduce((sum, a) => sum + a.current_balance, 0),
+      totalBancos: activeAccounts
+        .filter(a => a.type === 'banco')
+        .reduce((sum, a) => sum + a.current_balance, 0),
+      totalGeneral: activeAccounts
+        .reduce((sum, a) => sum + a.current_balance, 0)
+    }
+  }, [accounts])
 
   const columns = [
     {
@@ -250,6 +254,16 @@ function PaymentAccountsPage() {
         </Button>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <div className="text-red-800 text-sm">
+              {error}
+            </div>
+          </div>
+        </div>
+      )}
+
       <Card>
         <div className="space-y-4">
           <Table
@@ -269,11 +283,7 @@ function PaymentAccountsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(
-                accounts
-                  .filter(a => a.type === 'caja_chica' && a.is_active)
-                  .reduce((sum, a) => sum + a.current_balance, 0)
-              )}
+              {formatCurrency(balanceTotals.totalCajas)}
             </div>
           </CardContent>
         </Card>
@@ -284,11 +294,7 @@ function PaymentAccountsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              {formatCurrency(
-                accounts
-                  .filter(a => a.type === 'banco' && a.is_active)
-                  .reduce((sum, a) => sum + a.current_balance, 0)
-              )}
+              {formatCurrency(balanceTotals.totalBancos)}
             </div>
           </CardContent>
         </Card>
@@ -299,11 +305,7 @@ function PaymentAccountsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">
-              {formatCurrency(
-                accounts
-                  .filter(a => a.is_active)
-                  .reduce((sum, a) => sum + a.current_balance, 0)
-              )}
+              {formatCurrency(balanceTotals.totalGeneral)}
             </div>
           </CardContent>
         </Card>

@@ -17,11 +17,6 @@ export default function Home() {
                 Ir al Dashboard
               </button>
             </Link>
-            <Link href="/clientes">
-              <button className="border border-gray-300 text-gray-700 px-6 py-3 rounded-2xl hover:bg-gray-50 transition-colors">
-                Ver Demo
-              </button>
-            </Link>
           </div>
         </div>
       </div>

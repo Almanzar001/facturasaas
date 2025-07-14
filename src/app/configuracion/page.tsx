@@ -10,12 +10,12 @@ import Select from '@/components/Select'
 import { FormGroup, FormActions } from '@/components/FormField'
 import { useAuth, withAuth } from '@/contexts/AuthContext'
 import { SettingsService, UserSettings, UpdateSettingsData } from '@/services/settings'
+import { useSettings } from '@/hooks/useSettings'
 
 function ConfigurationPage() {
   const { user } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [settings, setSettings] = useState<UserSettings | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { settings, loading, error, updateSettings } = useSettings()
   const [saving, setSaving] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [formData, setFormData] = useState<UpdateSettingsData>({
@@ -31,39 +31,25 @@ function ConfigurationPage() {
   })
 
   useEffect(() => {
-    loadSettings()
-  }, [])
-
-  const loadSettings = async () => {
-    try {
-      setLoading(true)
-      const data = await SettingsService.getSettings()
-      if (data) {
-        setSettings(data)
-        setFormData({
-          company_name: data.company_name || '',
-          company_rnc: data.company_rnc || '',
-          company_address: data.company_address || '',
-          company_phone: data.company_phone || '',
-          company_email: data.company_email || '',
-          tax_rate: data.tax_rate || 18,
-          currency: data.currency || 'RD$',
-          invoice_prefix: data.invoice_prefix || 'FACT',
-          quote_prefix: data.quote_prefix || 'COT'
-        })
-      }
-    } catch (error) {
-      console.error('Error loading settings:', error)
-    } finally {
-      setLoading(false)
+    if (settings) {
+      setFormData({
+        company_name: settings.company_name || '',
+        company_rnc: settings.company_rnc || '',
+        company_address: settings.company_address || '',
+        company_phone: settings.company_phone || '',
+        company_email: settings.company_email || '',
+        tax_rate: settings.tax_rate || 18,
+        currency: settings.currency || 'RD$',
+        invoice_prefix: settings.invoice_prefix || 'FACT',
+        quote_prefix: settings.quote_prefix || 'COT'
+      })
     }
-  }
+  }, [settings])
 
   const handleSaveSettings = async () => {
     try {
       setSaving(true)
-      const updatedSettings = await SettingsService.updateSettings(formData)
-      setSettings(updatedSettings)
+      await updateSettings(formData)
       alert('Configuración guardada exitosamente')
     } catch (error) {
       console.error('Error saving settings:', error)
@@ -94,11 +80,9 @@ function ConfigurationPage() {
       const logoUrl = await SettingsService.uploadLogo(file)
       
       // Actualizar el logo en la configuración
-      const updatedSettings = await SettingsService.updateSettings({
+      await updateSettings({
         company_logo: logoUrl
       })
-      
-      setSettings(updatedSettings)
       alert('Logo subido exitosamente')
     } catch (error: any) {
       console.error('Error uploading logo:', error)
@@ -119,10 +103,9 @@ function ConfigurationPage() {
 
     try {
       setSaving(true)
-      const updatedSettings = await SettingsService.updateSettings({
+      await updateSettings({
         company_logo: undefined
       })
-      setSettings(updatedSettings)
       alert('Logo eliminado')
     } catch (error) {
       console.error('Error removing logo:', error)

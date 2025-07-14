@@ -1,19 +1,17 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 import { 
-  FiscalSequenceManagementService, 
-  CustomFiscalSequence, 
   CreateCustomSequenceData,
   UpdateCustomSequenceData
 } from '@/services/fiscalSequenceManagement'
-import { FiscalDocumentService, FiscalDocumentType } from '@/services/fiscalDocumentsAutoCreate'
+import { FiscalDocumentType } from '@/services/fiscalDocumentsAutoCreate'
+import { useFiscalSequences } from '@/hooks/useFiscalSequences'
 import Button from './Button'
 import Input from './Input'
 import Select from './Select'
 import Modal from './Modal'
 import Card from './Card'
-import { formatCurrency } from '@/utils/formatCurrency'
 
 interface FiscalSequenceManagerProps {
   onSequenceChange?: () => void
@@ -22,13 +20,25 @@ interface FiscalSequenceManagerProps {
 const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenceChange }) => {
   console.log('FiscalSequenceManager component loaded')
   
-  const [sequences, setSequences] = useState<CustomFiscalSequence[]>([])
-  const [documentTypes, setDocumentTypes] = useState<FiscalDocumentType[]>([])
-  const [loading, setLoading] = useState(true)
+  // Use the custom hook for state management
+  const {
+    sequences,
+    documentTypes,
+    loading,
+    error,
+    createSequence,
+    updateSequence,
+    deleteSequence,
+    resetSequence,
+    validateSequenceConfig,
+    previewFiscalNumber,
+    clearError
+  } = useFiscalSequences()
+  
+  // Local UI state
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [editingSequence, setEditingSequence] = useState<CustomFiscalSequence | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [editingSequence, setEditingSequence] = useState<any>(null)
 
   // Form data for creating/editing sequences
   const [formData, setFormData] = useState<CreateCustomSequenceData & UpdateCustomSequenceData>({
@@ -41,52 +51,24 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
     current_number: 0
   })
 
-  useEffect(() => {
-    loadData()
-  }, [])
+  // No need for useEffect or loadData - the hook handles this
 
-  const loadData = async () => {
-    try {
-      console.log('Loading fiscal sequence data...')
-      setLoading(true)
-      setError(null)
-      
-      const [sequencesData, documentTypesData] = await Promise.all([
-        FiscalSequenceManagementService.getAllSequences(),
-        FiscalDocumentService.getDocumentTypes()
-      ])
-      
-      console.log('Sequences loaded:', sequencesData)
-      console.log('Document types loaded:', documentTypesData)
-      
-      setSequences(sequencesData)
-      setDocumentTypes(documentTypesData)
-    } catch (error) {
-      console.error('Error loading data:', error)
-      setError('Error al cargar los datos de secuencias fiscales')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleCreateSequence = async () => {
+  const handleCreateSequence = useCallback(async () => {
     try {
       console.log('=== CREATING CUSTOM SEQUENCE ===')
       console.log('Form data:', formData)
-      setError(null)
+      clearError()
       
       // Validate form
-      const errors = FiscalSequenceManagementService.validateSequenceConfig(formData)
+      const errors = validateSequenceConfig(formData)
       console.log('Validation errors:', errors)
       if (errors.length > 0) {
-        setError(errors.join(', '))
-        return
+        throw new Error(errors.join(', '))
       }
 
       if (!formData.fiscal_document_type_id) {
         console.log('No document type selected')
-        setError('Debe seleccionar un tipo de documento')
-        return
+        throw new Error('Debe seleccionar un tipo de documento')
       }
 
       console.log('Creating sequence with:', {
@@ -98,7 +80,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
         padding_length: formData.padding_length
       })
 
-      const result = await FiscalSequenceManagementService.createCustomSequence({
+      const result = await createSequence({
         fiscal_document_type_id: formData.fiscal_document_type_id,
         prefix: formData.prefix,
         suffix: formData.suffix,
@@ -109,30 +91,28 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
       
       console.log('Sequence created successfully:', result)
 
-      await loadData()
       setShowCreateModal(false)
       resetForm()
       onSequenceChange?.()
     } catch (error: any) {
       console.error('Error creating sequence:', error)
-      setError(error.message || 'Error al crear la secuencia')
+      // Error is already set by the hook
     }
-  }
+  }, [formData, validateSequenceConfig, createSequence, onSequenceChange, clearError])
 
-  const handleEditSequence = async () => {
+  const handleEditSequence = useCallback(async () => {
     if (!editingSequence) return
 
     try {
-      setError(null)
+      clearError()
       
       // Validate form
-      const errors = FiscalSequenceManagementService.validateSequenceConfig(formData)
+      const errors = validateSequenceConfig(formData)
       if (errors.length > 0) {
-        setError(errors.join(', '))
-        return
+        throw new Error(errors.join(', '))
       }
 
-      await FiscalSequenceManagementService.updateCustomSequence(editingSequence.id, {
+      await updateSequence(editingSequence.id, {
         prefix: formData.prefix,
         suffix: formData.suffix,
         current_number: formData.current_number,
@@ -142,18 +122,17 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
         is_active: formData.is_active
       })
 
-      await loadData()
       setShowEditModal(false)
       setEditingSequence(null)
       resetForm()
       onSequenceChange?.()
     } catch (error: any) {
       console.error('Error updating sequence:', error)
-      setError(error.message || 'Error al actualizar la secuencia')
+      // Error is already set by the hook
     }
-  }
+  }, [editingSequence, formData, validateSequenceConfig, updateSequence, onSequenceChange, clearError])
 
-  const handleDeleteSequence = async (sequence: CustomFiscalSequence) => {
+  const handleDeleteSequence = useCallback(async (sequence: any) => {
     console.log('Attempting to delete sequence:', sequence)
     
     if (!confirm(`¿Está seguro de eliminar la secuencia para ${sequence.document_type?.name}?`)) {
@@ -163,38 +142,49 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
 
     try {
       console.log('Calling delete service for sequence ID:', sequence.id)
-      await FiscalSequenceManagementService.deleteSequence(sequence.id)
-      console.log('Delete successful, reloading data')
-      await loadData()
+      await deleteSequence(sequence.id)
+      console.log('Delete successful')
       onSequenceChange?.()
     } catch (error: any) {
       console.error('Error deleting sequence:', error)
       console.error('Error message:', error.message)
-      setError(error.message || 'Error al eliminar la secuencia')
+      // Error is already set by the hook
     }
-  }
+  }, [deleteSequence, onSequenceChange])
 
-  const handleResetSequence = async (sequence: CustomFiscalSequence) => {
+  const handleResetSequence = useCallback(async (sequence: any) => {
     if (!confirm(`¿Está seguro de reiniciar la secuencia para ${sequence.document_type?.name}? Esto restablecerá el contador al número inicial.`)) {
       return
     }
 
     try {
-      await FiscalSequenceManagementService.resetSequence(sequence.id)
-      await loadData()
+      await resetSequence(sequence.id)
       onSequenceChange?.()
     } catch (error: any) {
       console.error('Error resetting sequence:', error)
-      setError(error.message || 'Error al reiniciar la secuencia')
+      // Error is already set by the hook
     }
-  }
+  }, [resetSequence, onSequenceChange])
 
-  const openCreateModal = () => {
+  const resetForm = useCallback(() => {
+    setFormData({
+      fiscal_document_type_id: '',
+      prefix: '',
+      suffix: '',
+      start_number: 1,
+      max_number: 10000,
+      padding_length: 8,
+      current_number: 0
+    })
+    clearError()
+  }, [clearError])
+
+  const openCreateModal = useCallback(() => {
     resetForm()
     setShowCreateModal(true)
-  }
+  }, [resetForm])
 
-  const openEditModal = (sequence: CustomFiscalSequence) => {
+  const openEditModal = useCallback((sequence: any) => {
     setEditingSequence(sequence)
     setFormData({
       fiscal_document_type_id: sequence.fiscal_document_type_id,
@@ -207,40 +197,30 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
       is_active: sequence.is_active
     })
     setShowEditModal(true)
-  }
+  }, [])
 
-  const resetForm = () => {
-    setFormData({
-      fiscal_document_type_id: '',
-      prefix: '',
-      suffix: '',
-      start_number: 1,
-      max_number: 10000,
-      padding_length: 8,
-      current_number: 0
-    })
-    setError(null)
-  }
-
-  const getPreview = () => {
-    return FiscalSequenceManagementService.previewFiscalNumber(
+  // Memoized preview calculation to prevent unnecessary recalculations
+  const preview = useMemo(() => {
+    return previewFiscalNumber(
       formData.prefix || '',
       formData.suffix || '',
       Math.max(formData.current_number || 0, formData.start_number || 1),
       formData.padding_length || 8
     )
-  }
+  }, [formData.prefix, formData.suffix, formData.current_number, formData.start_number, formData.padding_length, previewFiscalNumber])
 
-  const getAvailableDocumentTypes = () => {
+  // Memoized available document types to prevent unnecessary filtering
+  const availableDocumentTypes = useMemo(() => {
     const usedTypeIds = sequences.map(seq => seq.fiscal_document_type_id)
     const availableTypes = documentTypes.filter(dt => !usedTypeIds.includes(dt.id))
     console.log('Available document types:', availableTypes)
     console.log('All document types:', documentTypes)
     console.log('Used type IDs:', usedTypeIds)
     return availableTypes
-  }
+  }, [sequences, documentTypes])
 
-  const getSequenceStatus = (sequence: CustomFiscalSequence) => {
+  // Memoized sequence status calculation
+  const getSequenceStatus = useCallback((sequence: any) => {
     const used = sequence.current_number - (sequence.start_number - 1)
     const total = sequence.max_number - (sequence.start_number - 1)
     const percentage = total > 0 ? (used / total) * 100 : 0
@@ -248,7 +228,20 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
     if (percentage >= 100) return { color: 'text-red-600', text: 'Agotada' }
     if (percentage >= 80) return { color: 'text-yellow-600', text: 'Por agotarse' }
     return { color: 'text-green-600', text: 'Disponible' }
-  }
+  }, [])
+
+  // Memoized form handlers to prevent unnecessary re-renders
+  const handleFormChange = useCallback((field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }, [])
+
+  const handleCloseCreateModal = useCallback(() => {
+    setShowCreateModal(false)
+  }, [])
+
+  const handleCloseEditModal = useCallback(() => {
+    setShowEditModal(false)
+  }, [])
 
   if (loading) {
     return <div className="p-6 text-center">Cargando secuencias fiscales...</div>
@@ -261,7 +254,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
         <Button
           onClick={openCreateModal}
           variant="primary"
-          disabled={getAvailableDocumentTypes().length === 0}
+          disabled={availableDocumentTypes.length === 0}
         >
           Nueva Secuencia
         </Button>
@@ -284,7 +277,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
         ) : (
           sequences.map((sequence) => {
             const status = getSequenceStatus(sequence)
-            const nextNumber = FiscalSequenceManagementService.previewFiscalNumber(
+            const nextNumber = previewFiscalNumber(
               sequence.prefix,
               sequence.suffix,
               Math.max(sequence.current_number + 1, sequence.start_number),
@@ -373,7 +366,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
       {/* Create Modal */}
       <Modal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={handleCloseCreateModal}
         title="Nueva Secuencia Fiscal"
         maxWidth="lg"
       >
@@ -383,38 +376,38 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
             value={formData.fiscal_document_type_id}
             onChange={(e) => {
               console.log('Document type selected:', e.target.value)
-              setFormData(prev => ({ ...prev, fiscal_document_type_id: e.target.value }))
+              handleFormChange('fiscal_document_type_id', e.target.value)
             }}
             options={[
               { value: '', label: 'Seleccionar tipo de documento...' },
-              ...getAvailableDocumentTypes().map(dt => ({
+              ...availableDocumentTypes.map(dt => ({
                 value: dt.id,
                 label: `${dt.code} - ${dt.name}`
               }))
             ]}
             required
           />
-          {getAvailableDocumentTypes().length === 0 && (
+          {availableDocumentTypes.length === 0 && (
             <div className="text-red-600 text-sm">
               No hay tipos de documento disponibles. Verifica la conexión a la base de datos.
             </div>
           )}
           <div className="text-xs text-gray-500">
-            Tipos disponibles: {getAvailableDocumentTypes().length}
+            Tipos disponibles: {availableDocumentTypes.length}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Prefijo"
               value={formData.prefix}
-              onChange={(e) => setFormData(prev => ({ ...prev, prefix: e.target.value }))}
+              onChange={(e) => handleFormChange('prefix', e.target.value)}
               placeholder="Ej: FAC-"
               maxLength={10}
             />
             <Input
               label="Sufijo"
               value={formData.suffix}
-              onChange={(e) => setFormData(prev => ({ ...prev, suffix: e.target.value }))}
+              onChange={(e) => handleFormChange('suffix', e.target.value)}
               placeholder="Ej: -DR"
               maxLength={10}
             />
@@ -425,7 +418,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
               label="Número Inicial"
               type="number"
               value={formData.start_number}
-              onChange={(e) => setFormData(prev => ({ ...prev, start_number: parseInt(e.target.value) || 1 }))}
+              onChange={(e) => handleFormChange('start_number', parseInt(e.target.value) || 1)}
               min={1}
               required
             />
@@ -433,7 +426,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
               label="Número Máximo"
               type="number"
               value={formData.max_number}
-              onChange={(e) => setFormData(prev => ({ ...prev, max_number: parseInt(e.target.value) || 10000 }))}
+              onChange={(e) => handleFormChange('max_number', parseInt(e.target.value) || 10000)}
               min={1}
               required
             />
@@ -441,7 +434,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
               label="Longitud de Relleno"
               type="number"
               value={formData.padding_length}
-              onChange={(e) => setFormData(prev => ({ ...prev, padding_length: parseInt(e.target.value) || 8 }))}
+              onChange={(e) => handleFormChange('padding_length', parseInt(e.target.value) || 8)}
               min={1}
               max={20}
               required
@@ -451,14 +444,14 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
           <div className="bg-gray-50 p-3 rounded">
             <span className="text-sm text-gray-600">Vista previa: </span>
             <span className="font-mono text-lg font-semibold text-blue-600">
-              {getPreview()}
+              {preview}
             </span>
           </div>
 
           <div className="flex justify-end space-x-3">
             <Button
               variant="outline"
-              onClick={() => setShowCreateModal(false)}
+              onClick={handleCloseCreateModal}
             >
               Cancelar
             </Button>
@@ -475,7 +468,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
       {/* Edit Modal */}
       <Modal
         isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
+        onClose={handleCloseEditModal}
         title="Editar Secuencia Fiscal"
         maxWidth="lg"
       >
@@ -490,14 +483,14 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
             <Input
               label="Prefijo"
               value={formData.prefix}
-              onChange={(e) => setFormData(prev => ({ ...prev, prefix: e.target.value }))}
+              onChange={(e) => handleFormChange('prefix', e.target.value)}
               placeholder="Ej: FAC-"
               maxLength={10}
             />
             <Input
               label="Sufijo"
               value={formData.suffix}
-              onChange={(e) => setFormData(prev => ({ ...prev, suffix: e.target.value }))}
+              onChange={(e) => handleFormChange('suffix', e.target.value)}
               placeholder="Ej: -DR"
               maxLength={10}
             />
@@ -508,7 +501,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
               label="Número Actual"
               type="number"
               value={formData.current_number}
-              onChange={(e) => setFormData(prev => ({ ...prev, current_number: parseInt(e.target.value) || 0 }))}
+              onChange={(e) => handleFormChange('current_number', parseInt(e.target.value) || 0)}
               min={0}
               required
             />
@@ -516,7 +509,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
               label="Número Inicial"
               type="number"
               value={formData.start_number}
-              onChange={(e) => setFormData(prev => ({ ...prev, start_number: parseInt(e.target.value) || 1 }))}
+              onChange={(e) => handleFormChange('start_number', parseInt(e.target.value) || 1)}
               min={1}
               required
             />
@@ -524,7 +517,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
               label="Número Máximo"
               type="number"
               value={formData.max_number}
-              onChange={(e) => setFormData(prev => ({ ...prev, max_number: parseInt(e.target.value) || 10000 }))}
+              onChange={(e) => handleFormChange('max_number', parseInt(e.target.value) || 10000)}
               min={1}
               required
             />
@@ -532,7 +525,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
               label="Longitud de Relleno"
               type="number"
               value={formData.padding_length}
-              onChange={(e) => setFormData(prev => ({ ...prev, padding_length: parseInt(e.target.value) || 8 }))}
+              onChange={(e) => handleFormChange('padding_length', parseInt(e.target.value) || 8)}
               min={1}
               max={20}
               required
@@ -544,7 +537,7 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
               type="checkbox"
               id="is_active"
               checked={formData.is_active}
-              onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
+              onChange={(e) => handleFormChange('is_active', e.target.checked)}
               className="rounded border-gray-300"
             />
             <label htmlFor="is_active" className="text-sm">
@@ -555,14 +548,14 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
           <div className="bg-gray-50 p-3 rounded">
             <span className="text-sm text-gray-600">Vista previa: </span>
             <span className="font-mono text-lg font-semibold text-blue-600">
-              {getPreview()}
+              {preview}
             </span>
           </div>
 
           <div className="flex justify-end space-x-3">
             <Button
               variant="outline"
-              onClick={() => setShowEditModal(false)}
+              onClick={handleCloseEditModal}
             >
               Cancelar
             </Button>

@@ -60,7 +60,6 @@ export class FiscalSequenceManagementService {
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('Error fetching sequences:', error)
         throw new Error(`Error fetching sequences: ${error.message}`)
       }
 
@@ -80,7 +79,6 @@ export class FiscalSequenceManagementService {
         updated_at: seq.updated_at
       })) || []
     } catch (error) {
-      console.error('Error in getAllSequences:', error)
       throw error
     }
   }
@@ -88,16 +86,6 @@ export class FiscalSequenceManagementService {
   // Get sequence by document type
   static async getSequenceByDocumentType(documentTypeId: string): Promise<CustomFiscalSequence | null> {
     try {
-      console.log('🔍 FiscalSequenceManagementService: Buscando secuencia para ID:', documentTypeId)
-      
-      // Primero ver todas las secuencias que existen
-      const { data: allSequences, error: allError } = await supabase
-        .from('fiscal_sequences')
-        .select('id, fiscal_document_type_id, is_active, prefix, suffix, current_number')
-      
-      console.log('🔍 Todas las secuencias en BD:', allSequences)
-      console.log('🔍 Error al obtener todas:', allError)
-      
       const { data, error } = await supabase
         .from('fiscal_sequences')
         .select(`
@@ -109,22 +97,15 @@ export class FiscalSequenceManagementService {
         .order('created_at', { ascending: false })
         .limit(1)
 
-      console.log('🔍 Query result:', { data, error })
-
       if (error) {
-        console.error('❌ Error en query:', error)
         throw new Error(`Error fetching sequence: ${error.message}`)
       }
 
       if (!data || data.length === 0) {
-        console.log('❌ No data returned')
         return null
       }
 
-      // Tomar el primer resultado (más reciente)
       const sequence = data[0]
-
-      console.log('✅ Secuencia personalizada encontrada:', sequence)
       
       return {
         id: sequence.id,
@@ -142,7 +123,6 @@ export class FiscalSequenceManagementService {
         updated_at: sequence.updated_at
       }
     } catch (error) {
-      console.error('Error in getSequenceByDocumentType:', error)
       throw error
     }
   }
@@ -197,7 +177,6 @@ export class FiscalSequenceManagementService {
         updated_at: result.updated_at
       }
     } catch (error) {
-      console.error('Error in createCustomSequence:', error)
       throw error
     }
   }
@@ -235,7 +214,6 @@ export class FiscalSequenceManagementService {
         updated_at: result.updated_at
       }
     } catch (error) {
-      console.error('Error in updateCustomSequence:', error)
       throw error
     }
   }
@@ -243,24 +221,15 @@ export class FiscalSequenceManagementService {
   // Delete a fiscal sequence
   static async deleteSequence(id: string): Promise<void> {
     try {
-      console.log('Deleting sequence with ID:', id)
-      
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('fiscal_sequences')
         .delete()
         .eq('id', id)
-        .select()
-
-      console.log('Delete result:', { data, error })
 
       if (error) {
-        console.error('Supabase delete error:', error)
         throw new Error(`Error deleting sequence: ${error.message}`)
       }
-      
-      console.log('Sequence deleted successfully')
     } catch (error) {
-      console.error('Error in deleteSequence:', error)
       throw error
     }
   }
@@ -286,7 +255,6 @@ export class FiscalSequenceManagementService {
 
       return await this.updateCustomSequence(id, resetData)
     } catch (error) {
-      console.error('Error in resetSequence:', error)
       throw error
     }
   }
@@ -344,7 +312,6 @@ export class FiscalSequenceManagementService {
         sequence_id: sequence.id
       }
     } catch (error) {
-      console.error('Error in generateNextFiscalNumber:', error)
       return {
         success: false,
         error: 'Error inesperado al generar número fiscal'
@@ -402,7 +369,6 @@ export class FiscalSequenceManagementService {
         is_near_limit: percentageUsed > 80
       }
     } catch (error) {
-      console.error('Error in getSequenceStats:', error)
       return null
     }
   }
