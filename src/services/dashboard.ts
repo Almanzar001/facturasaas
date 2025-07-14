@@ -164,86 +164,38 @@ export class DashboardService {
 
   static async getTopClients(limit: number = 5): Promise<TopClient[]> {
     const { data, error } = await supabase
-      .from('invoices')
-      .select(`
-        client_id,
-        total,
-        client:clients(id, name)
-      `)
-      .eq('status', 'paid')
+      .from('top_clients_optimized')
+      .select('client_id, name, total_revenue, invoice_count')
+      .limit(limit)
 
     if (error) {
       throw new Error(`Error fetching top clients: ${error.message}`)
     }
 
-    const clientRevenue: Record<string, { name: string; total: number; count: number }> = {}
-
-    data?.forEach((invoice: any) => {
-      if (invoice.client) {
-        const clientId = invoice.client.id
-        if (!clientRevenue[clientId]) {
-          clientRevenue[clientId] = {
-            name: invoice.client.name,
-            total: 0,
-            count: 0
-          }
-        }
-        clientRevenue[clientId].total += invoice.total
-        clientRevenue[clientId].count += 1
-      }
-    })
-
-    return Object.entries(clientRevenue)
-      .map(([id, data]) => ({
-        id,
-        name: data.name,
-        totalRevenue: data.total,
-        invoiceCount: data.count
-      }))
-      .sort((a, b) => b.totalRevenue - a.totalRevenue)
-      .slice(0, limit)
+    return data?.map((client: any) => ({
+      id: client.client_id,
+      name: client.name,
+      totalRevenue: client.total_revenue,
+      invoiceCount: client.invoice_count
+    })) || []
   }
 
   static async getTopProducts(limit: number = 5): Promise<TopProduct[]> {
     const { data, error } = await supabase
-      .from('invoice_items')
-      .select(`
-        product_id,
-        product_name,
-        total,
-        quantity,
-        invoice:invoices!inner(status)
-      `)
-      .eq('invoice.status', 'paid')
+      .from('top_products_optimized')
+      .select('product_id, product_name, total_revenue, total_quantity')
+      .limit(limit)
 
     if (error) {
       throw new Error(`Error fetching top products: ${error.message}`)
     }
 
-    const productRevenue: Record<string, { name: string; total: number; count: number }> = {}
-
-    data?.forEach((item: any) => {
-      const productKey = item.product_id || item.product_name
-      if (!productRevenue[productKey]) {
-        productRevenue[productKey] = {
-          name: item.product_name,
-          total: 0,
-          count: 0
-        }
-      }
-      productRevenue[productKey].total += item.total
-      productRevenue[productKey].count += item.quantity
-    })
-
-    return Object.entries(productRevenue)
-      .map(([id, data]) => ({
-        id,
-        name: data.name,
-        totalRevenue: data.total,
-        timesSold: data.count
-      }))
-      .sort((a, b) => b.totalRevenue - a.totalRevenue)
-      .slice(0, limit)
+    return data?.map((product: any) => ({
+      id: product.product_id,
+      name: product.product_name,
+      totalRevenue: product.total_revenue,
+      timesSold: product.total_quantity
+    })) || []
   }
 
   static async getRecentActivity(limit: number = 10): Promise<Array<{
@@ -254,68 +206,28 @@ export class DashboardService {
     amount?: number
     date: string
   }>> {
-    const [invoices, quotes, expenses, clients] = await Promise.all([
-      supabase.from('invoices').select('id, invoice_number, total, status, created_at, client:clients(name)').order('created_at', { ascending: false }).limit(3),
-      supabase.from('quotes').select('id, quote_number, total, status, created_at, client:clients(name)').order('created_at', { ascending: false }).limit(3),
-      supabase.from('expenses').select('id, description, amount, category, created_at').order('created_at', { ascending: false }).limit(3),
-      supabase.from('clients').select('id, name, created_at').order('created_at', { ascending: false }).limit(2)
-    ])
+    const { data, error } = await supabase
+      .from('recent_activity_optimized')
+      .select('activity_type, id, title, client_name, amount, status, created_at')
+      .limit(limit)
 
-    const activities: Array<{
-      id: string
-      type: 'invoice' | 'quote' | 'expense' | 'client'
-      title: string
-      subtitle: string
-      amount?: number
-      date: string
-    }> = []
+    if (error) {
+      throw new Error(`Error fetching recent activity: ${error.message}`)
+    }
 
-    invoices.data?.forEach((invoice: any) => {
-      activities.push({
-        id: invoice.id,
-        type: 'invoice',
-        title: `Factura ${invoice.invoice_number}`,
-        subtitle: `${invoice.client?.name || 'Cliente'} - ${invoice.status}`,
-        amount: invoice.total,
-        date: invoice.created_at
-      })
-    })
-
-    quotes.data?.forEach((quote: any) => {
-      activities.push({
-        id: quote.id,
-        type: 'quote',
-        title: `Cotización ${quote.quote_number}`,
-        subtitle: `${quote.client?.name || 'Cliente'} - ${quote.status}`,
-        amount: quote.total,
-        date: quote.created_at
-      })
-    })
-
-    expenses.data?.forEach((expense: any) => {
-      activities.push({
-        id: expense.id,
-        type: 'expense',
-        title: expense.description,
-        subtitle: expense.category,
-        amount: expense.amount,
-        date: expense.created_at
-      })
-    })
-
-    clients.data?.forEach((client: any) => {
-      activities.push({
-        id: client.id,
-        type: 'client',
-        title: `Cliente registrado: ${client.name}`,
-        subtitle: 'Nuevo cliente',
-        date: client.created_at
-      })
-    })
-
-    return activities
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, limit)
+    return data?.map((activity: any) => ({
+      id: activity.id,
+      type: activity.activity_type,
+      title: activity.activity_type === 'invoice' ? `Factura ${activity.title}` :
+             activity.activity_type === 'quote' ? `Cotización ${activity.title}` :
+             activity.activity_type === 'client' ? `Cliente registrado: ${activity.title}` :
+             activity.title,
+      subtitle: activity.activity_type === 'client' ? 'Nuevo cliente' :
+                activity.client_name ? `${activity.client_name} - ${activity.status}` :
+                activity.client_name || activity.status || '',
+      amount: activity.amount,
+      date: activity.created_at
+    })) || []
   }
 
   private static async getMonthlyRevenue(year: number, month: number): Promise<number> {
@@ -384,24 +296,20 @@ export class DashboardService {
   }
 
   private static async getMonthlyRevenueFromView(year: number, month: number): Promise<number> {
-    const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0]
-    const endDate = new Date(year, month, 0).toISOString().split('T')[0]
+    const monthKey = `${year}-${month.toString().padStart(2, '0')}-01`
 
     const { data, error } = await supabase
-      .from('payments')
-      .select(`
-        amount,
-        invoice:invoices!inner(date, user_id)
-      `)
-      .gte('invoice.date', startDate)
-      .lte('invoice.date', endDate)
+      .from('monthly_revenue_optimized')
+      .select('total_revenue')
+      .eq('month', monthKey)
+      .single()
 
     if (error) {
       console.error('Error fetching monthly revenue from view:', error)
       return 0
     }
 
-    return data?.reduce((sum, payment) => sum + payment.amount, 0) || 0
+    return data?.total_revenue || 0
   }
 
   private static async getMonthlyExpensesFromView(year: number, month: number): Promise<number> {

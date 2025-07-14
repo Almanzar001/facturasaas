@@ -56,8 +56,9 @@ export class AuthService {
 
       // Obtener información completa del usuario
       const { data: userData, error: userError } = await supabase
-        .from('current_user_info')
-        .select('*')
+        .from('users')
+        .select('id, email, full_name, company_name, role_id, is_active, last_login, created_at, updated_at')
+        .eq('id', authData.user.id)
         .single()
 
       if (userError) {
@@ -143,8 +144,9 @@ export class AuthService {
 
       // Obtener información completa del usuario
       const { data: userData } = await supabase
-        .from('current_user_info')
-        .select('*')
+        .from('users')
+        .select('id, email, full_name, company_name, role_id, is_active, last_login, created_at, updated_at')
+        .eq('id', authData.user.id)
         .single()
 
       return { 
@@ -181,8 +183,9 @@ export class AuthService {
       if (!user) return null
 
       const { data: userData } = await supabase
-        .from('current_user_info')
-        .select('*')
+        .from('users')
+        .select('id, email, full_name, company_name, role_id, is_active, last_login, created_at, updated_at')
+        .eq('id', user.id)
         .single()
 
       if (!userData || !userData.is_active) return null

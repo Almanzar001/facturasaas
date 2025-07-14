@@ -57,8 +57,8 @@ export class QuoteService {
   static async getAll(includeClient: boolean = true): Promise<Quote[]> {
     if (includeClient) {
       const { data, error } = await supabase
-        .from('quotes')
-        .select('*, client:clients(*), items:quote_items(*)')
+        .from('quotes_with_details')
+        .select('*')
         .order('created_at', { ascending: false })
 
       if (error) {

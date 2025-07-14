@@ -67,8 +67,8 @@ export class InvoiceService {
   static async getAll(includeClient: boolean = true): Promise<Invoice[]> {
     if (includeClient) {
       const { data, error } = await supabase
-        .from('invoices')
-        .select('*, client:clients(*), items:invoice_items(*)')
+        .from('invoices_with_details')
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
 
@@ -104,8 +104,8 @@ export class InvoiceService {
     // Luego obtener los datos paginados
     if (includeClient) {
       const { data, error } = await supabase
-        .from('invoices')
-        .select('*, client:clients(*), items:invoice_items(*)')
+        .from('invoices_with_details')
+        .select('*')
         .order('created_at', { ascending: false })
         .range(from, to)
 
@@ -358,26 +358,25 @@ export class InvoiceService {
     pendingAmount: number
   }> {
     const { data, error } = await supabase
-      .from('invoices')
-      .select('id, status, total')
+      .from('invoice_statistics')
+      .select('*')
+      .single()
 
     if (error) {
       throw new Error(`Error fetching invoice stats: ${error.message}`)
     }
 
-    const invoices = data || []
-    const totalAmount = invoices.reduce((sum, inv) => sum + inv.total, 0)
-    const paidAmount = invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + inv.total, 0)
+    const stats = data || {}
 
     return {
-      total: invoices.length,
-      draft: invoices.filter(inv => inv.status === 'draft').length,
-      sent: invoices.filter(inv => inv.status === 'sent').length,
-      paid: invoices.filter(inv => inv.status === 'paid').length,
-      overdue: invoices.filter(inv => inv.status === 'overdue').length,
-      totalAmount,
-      paidAmount,
-      pendingAmount: totalAmount - paidAmount
+      total: stats.total_invoices || 0,
+      draft: stats.draft_invoices || 0,
+      sent: stats.sent_invoices || 0,
+      paid: stats.paid_invoices || 0,
+      overdue: stats.overdue_invoices || 0,
+      totalAmount: stats.total_amount || 0,
+      paidAmount: stats.paid_amount || 0,
+      pendingAmount: stats.sent_amount + stats.overdue_amount || 0
     }
   }
 

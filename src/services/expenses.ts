@@ -167,18 +167,27 @@ export class ExpenseService {
     topCategories: Array<{ category: string; amount: number; count: number }>
   }> {
     const { data, error } = await supabase
-      .from('expenses')
-      .select('id, amount, category, date')
-      .eq('transaction_type', 'expense')
+      .from('expense_statistics')
+      .select('*')
+      .single()
 
     if (error) {
       throw new Error(`Error fetching expense stats: ${error.message}`)
     }
 
-    const expenses = data || []
-    const totalAmount = expenses.reduce((sum, expense) => sum + expense.amount, 0)
-    const averageAmount = expenses.length > 0 ? totalAmount / expenses.length : 0
+    const stats = data || {}
 
+    // Para categorías y monthly totals, necesitamos una consulta adicional simplificada
+    const { data: categoryData, error: categoryError } = await supabase
+      .from('expenses')
+      .select('category, amount, date')
+      .eq('transaction_type', 'expense')
+
+    if (categoryError) {
+      throw new Error(`Error fetching category data: ${categoryError.message}`)
+    }
+
+    const expenses = categoryData || []
     const categories: Record<string, number> = {}
     const monthlyTotals: Record<string, number> = {}
     const categoryStats: Record<string, { amount: number; count: number }> = {}
@@ -202,9 +211,9 @@ export class ExpenseService {
       .slice(0, 5)
 
     return {
-      total: expenses.length,
-      totalAmount,
-      averageAmount,
+      total: stats.total_expenses || 0,
+      totalAmount: stats.total_amount || 0,
+      averageAmount: stats.average_expense || 0,
       categories,
       monthlyTotals,
       topCategories

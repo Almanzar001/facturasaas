@@ -198,13 +198,11 @@ export class ProductService {
     timesUsed: number
   }>> {
     const { data, error } = await supabase
-      .from('products')
-      .select(`
-        *,
-        invoice_items!inner(id),
-        quote_items!inner(id)
-      `)
+      .from('product_statistics')
+      .select('*')
       .eq('is_active', true)
+      .order('total_quantity', { ascending: false })
+      .limit(limit)
 
     if (error) {
       throw new Error(`Error fetching most used products: ${error.message}`)
