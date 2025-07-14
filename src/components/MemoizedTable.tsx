@@ -1,24 +1,24 @@
 import React, { memo, useCallback } from 'react'
 import Table from './Table'
 
-interface MemoizedTableProps<T> {
-  data: T[]
+interface MemoizedTableProps {
+  data: any[]
   columns: any[]
   loading: boolean
   emptyMessage?: string
-  onRowClick?: (row: T, index: number) => void
+  onRowClick?: (row: any, index: number) => void
   className?: string
 }
 
-function MemoizedTable<T>({
+function MemoizedTable({
   data,
   columns,
   loading,
   emptyMessage = 'No hay datos disponibles',
   onRowClick,
   className
-}: MemoizedTableProps<T>) {
-  const handleRowClick = useCallback((row: T, index: number) => {
+}: MemoizedTableProps) {
+  const handleRowClick = useCallback((row: any, index: number) => {
     onRowClick?.(row, index)
   }, [onRowClick])
 
@@ -34,4 +34,4 @@ function MemoizedTable<T>({
   )
 }
 
-export default memo(MemoizedTable) as <T>(props: MemoizedTableProps<T>) => JSX.Element
+export default memo(MemoizedTable)

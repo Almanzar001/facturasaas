@@ -15,6 +15,7 @@ import StatusBadge from '@/components/StatusBadge'
 import InvoiceForm from './InvoiceForm'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { generateInvoicePDFAsync } from '@/components/LazyPDF'
+import type { InvoicePDFData } from '@/pdf/generateInvoicePDF'
 import { SettingsService } from '@/services/settings'
 
 function InvoicesPageContent() {
