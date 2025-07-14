@@ -79,9 +79,9 @@ export class AuthService {
 
       return { 
         user: {
+          ...userData,
           id: authData.user.id,
-          email: authData.user.email!,
-          ...userData
+          email: authData.user.email!
         }, 
         error: null 
       }
@@ -160,7 +160,7 @@ export class AuthService {
           is_active: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          ...userData
+          ...(userData || {})
         }, 
         error: null 
       }
@@ -191,9 +191,9 @@ export class AuthService {
       if (!userData || !userData.is_active) return null
 
       return {
+        ...userData,
         id: user.id,
-        email: user.email!,
-        ...userData
+        email: user.email!
       }
     } catch (error) {
       return null
