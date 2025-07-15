@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { InvoiceService, Invoice, CreateInvoiceData } from '@/services/invoices'
 import { ClientService, Client } from '@/services/clients'
 import { ProductService, Product } from '@/services/products'
-import { PaymentService, Payment, CreatePaymentData } from '@/services/payments'
+import { PaymentService, Payment } from '@/services/payments'
 import { PaymentAccountService, PaymentAccount } from '@/services/paymentAccounts'
 import { SettingsService, UserSettings } from '@/services/settings'
 import Button from '@/components/Button'
@@ -143,7 +143,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
       const data = await ClientService.getAll()
       setClients(data)
     } catch (error) {
-      console.error('Error loading clients:', error)
+      // Handle error silently for now
     }
   }
 
@@ -152,7 +152,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
       const data = await ProductService.getAll()
       setProducts(data)
     } catch (error) {
-      console.error('Error loading products:', error)
+      // Handle error silently for now
     }
   }
 
@@ -161,7 +161,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
       const data = await PaymentService.getByInvoice(invoiceId)
       setPayments(data)
     } catch (error) {
-      console.error('Error loading payments:', error)
+      // Handle error silently for now
     }
   }
 
@@ -170,7 +170,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
       const data = await SettingsService.getSettings()
       setSettings(data)
     } catch (error) {
-      console.error('Error loading settings:', error)
+      // Handle error silently for now
     }
   }
 
@@ -185,7 +185,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
         setInitialPayment(prev => ({ ...prev, payment_account_id: defaultAccount.id }))
       }
     } catch (error) {
-      console.error('Error loading payment accounts:', error)
+      // Handle error silently for now
     }
   }
 
@@ -194,7 +194,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
       const number = await InvoiceService.generateInvoiceNumber()
       setFormData(prev => ({ ...prev, invoice_number: number }))
     } catch (error) {
-      console.error('Error generating invoice number:', error)
+      // Handle error silently for now
     }
   }
 
@@ -282,7 +282,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
         setFormData(prev => ({ ...prev, status: 'paid' }))
       }
     } catch (error) {
-      console.error('Error adding payment:', error)
       alert('Error al agregar el pago')
     } finally {
       setLoading(false)
@@ -378,7 +377,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
 
       onSave()
     } catch (error: any) {
-      console.error('Error saving invoice:', error)
       
       // Mensaje de error específico para secuencias fiscales
       if (error.message?.includes('No se pudo generar el número fiscal') || error.message?.includes('No hay secuencia activa')) {
@@ -392,8 +390,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
   }
 
   const handleGeneratePDF = async () => {
-    if (!formData.client_id || formData.items.length === 0) {
-      alert('Debe seleccionar un cliente y agregar productos antes de generar el PDF')
+    // Validaciones más amigables
+    if (!formData.client_id) {
+      alert('⚠️ Debe seleccionar un cliente antes de generar el PDF')
+      return
+    }
+    
+    if (formData.items.length === 0) {
+      alert('⚠️ Debe agregar al menos un producto antes de generar el PDF')
       return
     }
 
@@ -452,7 +456,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
       const filename = `Factura_${formData.invoice_number || 'Preview'}.pdf`
       downloadPDF(pdfBytes, filename)
     } catch (error) {
-      console.error('Error generating PDF:', error)
       alert('Error al generar el PDF')
     } finally {
       setPdfLoading(false)
@@ -900,7 +903,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
           variant="secondary"
           onClick={handleGeneratePDF}
           loading={pdfLoading}
-          disabled={loading || !formData.client_id || formData.items.length === 0}
+          disabled={loading}
         >
           Vista Previa PDF
         </Button>

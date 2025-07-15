@@ -44,10 +44,14 @@ export default function LoginPage() {
 
     try {
       setLoading(true)
+      
       const { error } = await login(formData)
 
       if (error) {
         setErrors({ general: error })
+      } else {
+        // Redirigir al dashboard después del login exitoso
+        router.push('/dashboard')
       }
     } catch (error) {
       setErrors({ general: 'Error al iniciar sesión' })

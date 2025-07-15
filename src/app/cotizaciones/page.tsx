@@ -13,6 +13,7 @@ import StatusBadge from '@/components/StatusBadge'
 import QuoteForm from './QuoteForm'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { generateQuotePDF, downloadPDF, QuotePDFData } from '@/pdf/generateQuotePDF'
+import { SettingsService } from '@/services/settings'
 
 export default function QuotesPage() {
   const [quotes, setQuotes] = useState<Quote[]>([])
@@ -40,7 +41,7 @@ export default function QuotesPage() {
       setQuotes(data)
       setFilteredQuotes(data)
     } catch (error) {
-      console.error('Error loading quotes:', error)
+      // Handle error silently for now
     } finally {
       setLoading(false)
     }
@@ -79,7 +80,6 @@ export default function QuotesPage() {
       await QuoteService.updateStatus(quote.id, newStatus)
       await loadQuotes()
     } catch (error) {
-      console.error('Error updating quote status:', error)
       alert('Error al actualizar el estado de la cotización')
     }
   }
@@ -100,7 +100,6 @@ export default function QuotesPage() {
       alert(`Cotización convertida exitosamente. ID de factura: ${invoiceId}`)
       await loadQuotes()
     } catch (error) {
-      console.error('Error converting quote to invoice:', error)
       alert('Error al convertir la cotización a factura')
     } finally {
       setConvertingToInvoice(null)
@@ -113,42 +112,78 @@ export default function QuotesPage() {
         await QuoteService.delete(quote.id)
         await loadQuotes()
       } catch (error) {
-        console.error('Error deleting quote:', error)
         alert('Error al eliminar la cotización')
       }
     }
   }
 
   const handleDownloadPDF = async (quote: Quote) => {
-    if (!quote.client || !quote.items || quote.items.length === 0) {
-      alert('No se puede generar el PDF: faltan datos de la cotización')
+    // Validaciones más amigables
+    if (!quote.client) {
+      alert('⚠️ No se puede generar el PDF: falta información del cliente')
       return
+    }
+    
+    // Si no hay items cargados, intentar cargar la cotización completa
+    if (!quote.items || quote.items.length === 0) {
+      try {
+        const fullQuote = await QuoteService.getById(quote.id)
+        if (!fullQuote || !fullQuote.items || fullQuote.items.length === 0) {
+          alert('⚠️ No se puede generar el PDF: no hay productos en la cotización')
+          return
+        }
+        // Usar la cotización completa
+        quote = fullQuote
+      } catch (error) {
+        alert('⚠️ Error al cargar los datos de la cotización')
+        return
+      }
     }
 
     try {
       setPdfLoading(quote.id)
       
-      const company = {
-        name: 'Su Empresa',
-        address: 'Dirección de la empresa',
-        phone: '+57 300 123 4567',
-        email: 'contacto@suempresa.com',
-        nit: '900.123.456-7'
+      // Obtener configuración de la empresa
+      const settings = await SettingsService.getSettings()
+      
+      if (!settings) {
+        alert('⚠️ Error al obtener la configuración de la empresa. Usando valores por defecto.')
+        // Crear configuración temporal por defecto
+        const defaultSettings = {
+          company_name: 'Mi Empresa',
+          company_address: 'Dirección de la empresa',
+          company_phone: '+1 (809) 123-4567',
+          company_email: 'contacto@miempresa.com',
+          company_rnc: '000-000000-0',
+          tax_rate: 18,
+          currency: 'RD$'
+        }
+        
+        const quoteData: QuotePDFData = {
+          quote,
+          client: quote.client!,
+          items: quote.items!,
+          settings: defaultSettings as any
+        }
+
+        const pdfBytes = await generateQuotePDF(quoteData)
+        const filename = `Cotizacion_${quote.quote_number}.pdf`
+        downloadPDF(pdfBytes, filename)
+        return
       }
 
       const quoteData: QuotePDFData = {
         quote,
-        client: quote.client,
-        items: quote.items,
-        company
+        client: quote.client!,
+        items: quote.items!,
+        settings
       }
 
       const pdfBytes = await generateQuotePDF(quoteData)
       const filename = `Cotizacion_${quote.quote_number}.pdf`
       downloadPDF(pdfBytes, filename)
     } catch (error) {
-      console.error('Error generating PDF:', error)
-      alert('Error al generar el PDF')
+      alert(`Error al generar el PDF: ${error instanceof Error ? error.message : 'Error desconocido'}`)
     } finally {
       setPdfLoading(null)
     }
@@ -245,7 +280,6 @@ export default function QuotesPage() {
             variant="secondary"
             onClick={() => handleDownloadPDF(row)}
             loading={pdfLoading === row.id}
-            disabled={!row.client || !row.items || row.items.length === 0}
           >
             PDF
           </Button>

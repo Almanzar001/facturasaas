@@ -37,13 +37,17 @@ const ClientSearchAutocomplete: React.FC<ClientSearchAutocompleteProps> = ({
   
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
-  // Buscar clientes cuando cambia el término de búsqueda
+  // Cargar todos los clientes al inicio
   useEffect(() => {
-    if (debouncedSearchTerm.length >= 2) {
+    loadAllClients()
+  }, [])
+
+  // Filtrar clientes cuando cambia el término de búsqueda
+  useEffect(() => {
+    if (debouncedSearchTerm.length >= 1) {
       searchClients(debouncedSearchTerm)
-    } else {
-      setClients([])
-      setIsOpen(false)
+    } else if (debouncedSearchTerm.length === 0) {
+      loadAllClients()
     }
   }, [debouncedSearchTerm])
 
@@ -70,6 +74,19 @@ const ClientSearchAutocomplete: React.FC<ClientSearchAutocompleteProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  const loadAllClients = async () => {
+    try {
+      setLoading(true)
+      const results = await ClientService.getAll()
+      setClients(results)
+      setHighlightedIndex(-1)
+    } catch (error) {
+      setClients([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const searchClients = async (term: string) => {
     try {
       setLoading(true)
@@ -78,7 +95,6 @@ const ClientSearchAutocomplete: React.FC<ClientSearchAutocompleteProps> = ({
       setIsOpen(results.length > 0)
       setHighlightedIndex(-1)
     } catch (error) {
-      console.error('Error buscando clientes:', error)
       setClients([])
       setIsOpen(false)
     } finally {
@@ -177,7 +193,10 @@ const ClientSearchAutocomplete: React.FC<ClientSearchAutocompleteProps> = ({
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={() => {
-            if (clients.length > 0) setIsOpen(true)
+            setIsOpen(true)
+            if (clients.length === 0) {
+              loadAllClients()
+            }
           }}
           placeholder={placeholder}
           className={`block w-full pl-10 pr-10 py-2 border rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${

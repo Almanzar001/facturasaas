@@ -87,7 +87,6 @@ function PaymentAccountsPage() {
 
       handleCloseModal()
     } catch (error) {
-      console.error('Error saving account:', error)
       alert('Error al guardar la cuenta')
     } finally {
       setSaving(false)
@@ -113,7 +112,6 @@ function PaymentAccountsPage() {
     try {
       await toggleAccountActive(account.id)
     } catch (error) {
-      console.error('Error toggling account status:', error)
       alert('Error al cambiar el estado de la cuenta')
     }
   }, [toggleAccountActive])
@@ -122,7 +120,6 @@ function PaymentAccountsPage() {
     try {
       await setDefaultAccount(account.id)
     } catch (error) {
-      console.error('Error setting default account:', error)
       alert('Error al establecer cuenta por defecto')
     }
   }, [setDefaultAccount])
@@ -133,7 +130,6 @@ function PaymentAccountsPage() {
     try {
       await deleteAccount(account.id)
     } catch (error) {
-      console.error('Error deleting account:', error)
       alert('Error al eliminar la cuenta. Puede tener transacciones asociadas.')
     }
   }, [deleteAccount])

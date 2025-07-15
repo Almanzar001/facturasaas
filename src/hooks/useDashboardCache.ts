@@ -61,12 +61,24 @@ export function useDashboardCache() {
         }
       }
 
-      // Fetch fresh data
-      const data = await DashboardService.getMetrics()
-      setMetrics(data)
-      setCachedData(data)
+      // Fetch fresh data using getDashboardData
+      const dashboardData = await DashboardService.getDashboardData()
+      const metricsData: DashboardMetrics = {
+        totalRevenue: dashboardData.totalRevenue,
+        totalExpenses: dashboardData.totalExpenses,
+        totalInvoices: dashboardData.totalInvoices,
+        totalClients: dashboardData.totalClients,
+        pendingInvoices: dashboardData.pendingInvoices,
+        overdueInvoices: dashboardData.overdueInvoices,
+        netProfit: dashboardData.netProfit,
+        revenueGrowth: dashboardData.revenueGrowth,
+        expenseGrowth: dashboardData.expenseGrowth,
+      }
       
-      return data
+      setMetrics(metricsData)
+      setCachedData(metricsData)
+      
+      return metricsData
     } catch (err: any) {
       setError(err.message || 'Error loading dashboard metrics')
       throw err

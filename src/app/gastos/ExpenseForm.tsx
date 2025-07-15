@@ -109,7 +109,6 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onSave, onCancel }) 
 
       onSave()
     } catch (error) {
-      console.error('Error saving expense:', error)
       alert('Error al guardar el gasto')
     } finally {
       setLoading(false)

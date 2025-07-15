@@ -37,13 +37,11 @@ export class FiscalDocumentServiceSimplified {
   // Get document types using JSON function (avoids type mismatch)
   static async getDocumentTypes(): Promise<FiscalDocumentType[]> {
     try {
-      console.log('🔧 Fetching document types using simplified method...')
 
       // Use the JSON function to avoid type mismatch issues
       const { data, error } = await supabase.rpc('get_fiscal_doc_types_json')
       
       if (error) {
-        console.warn('RPC function not available, trying direct query:', error)
         
         // Fallback to direct query
         const { data: directData, error: directError } = await supabase
@@ -53,7 +51,6 @@ export class FiscalDocumentServiceSimplified {
           .order('code')
           
         if (directError) {
-          console.error('Direct query failed:', directError)
           return []
         }
 
@@ -79,10 +76,8 @@ export class FiscalDocumentServiceSimplified {
         is_active: item.is_active
       }))
 
-      console.log('✅ Document types fetched:', result.length)
       return result
     } catch (error) {
-      console.error('Error in getDocumentTypes:', error)
       return []
     }
   }
@@ -93,11 +88,9 @@ export class FiscalDocumentServiceSimplified {
       const existing = await this.getDocumentTypes()
       
       if (existing.length > 0) {
-        console.log('✅ Document types already exist:', existing.length)
         return
       }
 
-      console.log('🔧 Creating default document types...')
       
       // Try to create basic types
       const typesToCreate = [
@@ -111,19 +104,15 @@ export class FiscalDocumentServiceSimplified {
         .insert(typesToCreate)
 
       if (error) {
-        console.warn('Could not create document types:', error)
       } else {
-        console.log('✅ Default document types created')
       }
     } catch (error) {
-      console.error('Error ensuring document types:', error)
     }
   }
 
   // Generate next fiscal number using simplified function
   static async getNextFiscalNumber(documentTypeId: string): Promise<NextFiscalNumber> {
     try {
-      console.log('🔢 Generating fiscal number for type:', documentTypeId)
 
       const { data: userData, error: userError } = await supabase.auth.getUser()
       
@@ -136,22 +125,19 @@ export class FiscalDocumentServiceSimplified {
 
       // Use the simplified RPC function
       const { data, error } = await supabase.rpc('generate_fiscal_number_simple', {
-        p_user_id: userData.user.id,
         p_document_type_id: documentTypeId
       })
 
       if (error) {
-        console.error('❌ RPC function error:', error)
         
         // Fallback to direct sequence handling
-        return await this.generateFiscalNumberFallback(documentTypeId, userData.user.id)
+        return await this.generateFiscalNumberFallback(documentTypeId)
       }
 
       // Parse JSON result
       const result = data || {}
       
       if (result.success) {
-        console.log('✅ Fiscal number generated:', result.fiscal_number)
         
         return {
           success: true,
@@ -161,7 +147,6 @@ export class FiscalDocumentServiceSimplified {
           number: result.current_number
         }
       } else {
-        console.error('❌ Generation failed:', result.error)
         return {
           success: false,
           error: result.error || 'Error generating fiscal number'
@@ -169,7 +154,6 @@ export class FiscalDocumentServiceSimplified {
       }
 
     } catch (error) {
-      console.error('❌ Error generating fiscal number:', error)
       return {
         success: false,
         error: 'Error inesperado al generar número fiscal'
@@ -178,22 +162,19 @@ export class FiscalDocumentServiceSimplified {
   }
 
   // Fallback method for direct sequence handling
-  private static async generateFiscalNumberFallback(documentTypeId: string, userId: string): Promise<NextFiscalNumber> {
+  private static async generateFiscalNumberFallback(documentTypeId: string): Promise<NextFiscalNumber> {
     try {
-      console.log('🔄 Using fallback sequence generation...')
 
       // Get or create sequence
       let { data: sequence, error: seqError } = await supabase
         .from('fiscal_sequences')
         .select('*')
-        .eq('user_id', userId)
         .eq('fiscal_document_type_id', documentTypeId)
         .eq('is_active', true)
         .single()
 
       if (seqError && seqError.code === 'PGRST116') {
         // No sequence exists, create one
-        console.log('🆕 Creating new sequence...')
         
         const { data: docType } = await supabase
           .from('fiscal_document_types')
@@ -202,7 +183,6 @@ export class FiscalDocumentServiceSimplified {
           .single()
 
         const sequenceData = {
-          user_id: userId,
           fiscal_document_type_id: documentTypeId,
           prefix: docType?.code || 'DOC',
           suffix: '',
@@ -269,7 +249,6 @@ export class FiscalDocumentServiceSimplified {
       const paddingLength = sequence.padding_length || 8
       const fiscalNumber = `${sequence.prefix || ''}${nextNumber.toString().padStart(paddingLength, '0')}${sequence.suffix || ''}`
 
-      console.log('✅ Fiscal number generated (fallback):', fiscalNumber)
 
       return {
         success: true,
@@ -280,7 +259,6 @@ export class FiscalDocumentServiceSimplified {
       }
 
     } catch (error) {
-      console.error('❌ Fallback generation failed:', error)
       return {
         success: false,
         error: 'Fallback generation failed'
@@ -297,13 +275,11 @@ export class FiscalDocumentServiceSimplified {
       const { data, error } = await supabase
         .from('fiscal_sequences')
         .select('*')
-        .eq('user_id', userData.user.id)
         .eq('fiscal_document_type_id', documentTypeId)
         .eq('is_active', true)
         .single()
 
       if (error) {
-        console.error('Error getting active sequence:', error)
         return null
       }
 
@@ -320,7 +296,6 @@ export class FiscalDocumentServiceSimplified {
         is_active: data.is_active
       }
     } catch (error) {
-      console.error('Error in getActiveSequenceForType:', error)
       return null
     }
   }

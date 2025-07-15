@@ -113,21 +113,24 @@ export class FiscalDocumentService {
       ].filter(type => !existingCodes.includes(type.code))
 
       if (typesToCreate.length > 0) {
-        console.log('Creando tipos de documento faltantes:', typesToCreate)
         const { error } = await supabase
           .from('fiscal_document_types')
           .insert(typesToCreate)
         
         if (error) {
-          console.error('Error creando tipos de documento:', error)
-        }
+          }
       }
     } catch (error) {
-      console.error('Error en ensureBasicDocumentTypes:', error)
     }
   }
 
   static async getSequences(includeInactive: boolean = false): Promise<FiscalSequence[]> {
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
     let query = supabase
       .from('fiscal_sequences')
       .select(`
@@ -170,7 +173,11 @@ export class FiscalDocumentService {
   }
 
   static async createSequence(sequenceData: CreateFiscalSequenceData): Promise<FiscalSequence> {
-    console.log('Creating sequence with data:', sequenceData)
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
     
     // Verificar si ya existe una secuencia para este tipo de documento
     const { data: existingSequences } = await supabase
@@ -178,7 +185,6 @@ export class FiscalDocumentService {
       .select('id, series, is_active')
       .eq('fiscal_document_type_id', sequenceData.fiscal_document_type_id)
     
-    console.log('Existing sequences for this document type:', existingSequences)
     
     if (existingSequences && existingSequences.length > 0) {
       const activeSequence = existingSequences.find(s => s.is_active)
@@ -201,7 +207,6 @@ export class FiscalDocumentService {
       cleanedData = dataWithoutExpiration as any;
     }
 
-    console.log('Cleaned data for insertion:', cleanedData)
 
     const { data, error } = await supabase
       .from('fiscal_sequences')
@@ -213,14 +218,9 @@ export class FiscalDocumentService {
       .single()
 
     if (error) {
-      console.error('Error creating sequence:', error)
-      console.error('Error details:', error.details)
-      console.error('Error hint:', error.hint)
-      console.error('Error code:', error.code)
       throw new Error(`Error creating sequence: ${error.message}`)
     }
 
-    console.log('Sequence created successfully:', data)
     return data
   }
 
@@ -290,7 +290,6 @@ export class FiscalDocumentService {
           *,
           document_type:fiscal_document_types(*)
         `)
-        .eq('user_id', userData.user.id)
         .eq('fiscal_document_type_id', documentTypeId)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
@@ -337,7 +336,6 @@ export class FiscalDocumentService {
       }
 
     } catch (error) {
-      console.error('Error generating fiscal number:', error)
       throw error
     }
   }

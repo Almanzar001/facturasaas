@@ -38,7 +38,6 @@ function InvoiceDetailPage() {
       }
       setInvoice(data)
     } catch (error) {
-      console.error('Error loading invoice:', error)
       router.push('/facturas')
     } finally {
       setLoading(false)
@@ -67,9 +66,15 @@ function InvoiceDetailPage() {
         tax_rate: settings?.tax_rate || 18
       }
       
+      // Validate client data
+      if (!invoice.client) {
+        alert('Error: No se encontró información del cliente para generar el PDF')
+        return
+      }
+
       const pdfData = {
         invoice,
-        client: invoice.client!,
+        client: invoice.client,
         items: invoice.items || [],
         payments,
         company
@@ -79,7 +84,6 @@ function InvoiceDetailPage() {
       const filename = `Factura_${invoice.invoice_number}.pdf`
       downloadPDF(pdfBytes, filename)
     } catch (error) {
-      console.error('Error generating PDF:', error)
       alert('Error al generar el PDF')
     } finally {
       setPdfLoading(false)
@@ -186,7 +190,7 @@ function InvoiceDetailPage() {
                 <span className="font-medium">{formatCurrency(invoice.subtotal)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">ITBIS (19%):</span>
+                <span className="text-gray-600">ITBIS:</span>
                 <span className="font-medium">{formatCurrency(invoice.tax_amount)}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold">

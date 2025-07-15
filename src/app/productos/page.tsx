@@ -39,7 +39,6 @@ export default function ProductsPage() {
       setProducts(data)
       setFilteredProducts(data)
     } catch (error) {
-      console.error('Error loading products:', error)
     } finally {
       setLoading(false)
     }
@@ -50,7 +49,6 @@ export default function ProductsPage() {
       const data = await ProductService.search(query)
       setFilteredProducts(data)
     } catch (error) {
-      console.error('Error searching products:', error)
     }
   }
 
@@ -69,7 +67,6 @@ export default function ProductsPage() {
       await ProductService.toggleActive(product.id)
       await loadProducts()
     } catch (error) {
-      console.error('Error toggling product status:', error)
       alert('Error al cambiar el estado del producto')
     }
   }
@@ -80,7 +77,6 @@ export default function ProductsPage() {
         await ProductService.delete(product.id)
         await loadProducts()
       } catch (error) {
-        console.error('Error deleting product:', error)
         alert('Error al eliminar el producto')
       }
     }

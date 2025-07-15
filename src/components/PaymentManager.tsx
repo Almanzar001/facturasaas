@@ -61,7 +61,6 @@ const PaymentManager: React.FC<PaymentManagerProps> = ({
       const data = await PaymentService.getByInvoice(invoiceId)
       setPayments(data)
     } catch (error) {
-      console.error('Error loading payments:', error)
     } finally {
       setLoading(false)
     }
@@ -78,7 +77,6 @@ const PaymentManager: React.FC<PaymentManagerProps> = ({
         setFormData(prev => ({ ...prev, payment_account_id: defaultAccount.id }))
       }
     } catch (error) {
-      console.error('Error loading payment accounts:', error)
     }
   }
 
@@ -133,7 +131,6 @@ const PaymentManager: React.FC<PaymentManagerProps> = ({
 
     try {
       setSaving(true)
-      console.log('🚀 Iniciando actualización de pago...')
       
       // Actualizar pago con timeout
       const updatePromise = PaymentService.update(editingPayment.id, formData)
@@ -145,14 +142,11 @@ const PaymentManager: React.FC<PaymentManagerProps> = ({
       
       await Promise.race([updatePromise, timeoutPromise])
       
-      console.log('✅ Pago actualizado, recargando lista...')
       await loadPayments()
       setShowEditModal(false)
       resetForm()
       if (onPaymentUpdate) onPaymentUpdate()
-      console.log('🎉 Actualización completada')
     } catch (error) {
-      console.error('❌ Error updating payment:', error)
       alert(`Error al actualizar el pago: ${error instanceof Error ? error.message : 'Error desconocido'}`)
     } finally {
       setSaving(false)
@@ -164,7 +158,6 @@ const PaymentManager: React.FC<PaymentManagerProps> = ({
 
     try {
       setSaving(true)
-      console.log('🚀 Iniciando creación de pago...')
       
       // Crear pago con timeout
       const paymentPromise = PaymentService.create({
@@ -179,14 +172,11 @@ const PaymentManager: React.FC<PaymentManagerProps> = ({
       
       await Promise.race([paymentPromise, timeoutPromise])
       
-      console.log('✅ Pago creado, recargando lista...')
       await loadPayments()
       setShowAddModal(false)
       resetForm()
       if (onPaymentUpdate) onPaymentUpdate()
-      console.log('🎉 Proceso completado')
     } catch (error) {
-      console.error('❌ Error adding payment:', error)
       alert(`Error al agregar el pago: ${error instanceof Error ? error.message : 'Error desconocido'}`)
     } finally {
       setSaving(false)
@@ -201,7 +191,6 @@ const PaymentManager: React.FC<PaymentManagerProps> = ({
       await loadPayments()
       if (onPaymentUpdate) onPaymentUpdate()
     } catch (error) {
-      console.error('Error deleting payment:', error)
       alert('Error al eliminar el pago')
     }
   }

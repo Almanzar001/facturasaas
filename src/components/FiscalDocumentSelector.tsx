@@ -53,7 +53,6 @@ const FiscalDocumentSelector: React.FC<FiscalDocumentSelectorProps> = ({
       setDocumentTypes(types)
       setLoading(false)
     } catch (error) {
-      console.error('Error loading document types:', error)
       setLoading(false)
     }
   }
@@ -76,7 +75,6 @@ const FiscalDocumentSelector: React.FC<FiscalDocumentSelectorProps> = ({
         setNextNumber('')
       }
     } catch (error) {
-      console.error('Error checking sequence:', error)
       setActiveSequence(null)
       setNextNumber('')
     }

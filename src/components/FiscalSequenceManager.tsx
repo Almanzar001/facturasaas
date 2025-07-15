@@ -18,7 +18,6 @@ interface FiscalSequenceManagerProps {
 }
 
 const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenceChange }) => {
-  console.log('FiscalSequenceManager component loaded')
   
   // Use the custom hook for state management
   const {
@@ -55,30 +54,18 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
 
   const handleCreateSequence = useCallback(async () => {
     try {
-      console.log('=== CREATING CUSTOM SEQUENCE ===')
-      console.log('Form data:', formData)
       clearError()
       
       // Validate form
       const errors = validateSequenceConfig(formData)
-      console.log('Validation errors:', errors)
       if (errors.length > 0) {
         throw new Error(errors.join(', '))
       }
 
       if (!formData.fiscal_document_type_id) {
-        console.log('No document type selected')
         throw new Error('Debe seleccionar un tipo de documento')
       }
 
-      console.log('Creating sequence with:', {
-        fiscal_document_type_id: formData.fiscal_document_type_id,
-        prefix: formData.prefix,
-        suffix: formData.suffix,
-        start_number: formData.start_number,
-        max_number: formData.max_number,
-        padding_length: formData.padding_length
-      })
 
       const result = await createSequence({
         fiscal_document_type_id: formData.fiscal_document_type_id,
@@ -89,13 +76,11 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
         padding_length: formData.padding_length
       })
       
-      console.log('Sequence created successfully:', result)
 
       setShowCreateModal(false)
       resetForm()
       onSequenceChange?.()
     } catch (error: any) {
-      console.error('Error creating sequence:', error)
       // Error is already set by the hook
     }
   }, [formData, validateSequenceConfig, createSequence, onSequenceChange, clearError])
@@ -127,27 +112,19 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
       resetForm()
       onSequenceChange?.()
     } catch (error: any) {
-      console.error('Error updating sequence:', error)
       // Error is already set by the hook
     }
   }, [editingSequence, formData, validateSequenceConfig, updateSequence, onSequenceChange, clearError])
 
   const handleDeleteSequence = useCallback(async (sequence: any) => {
-    console.log('Attempting to delete sequence:', sequence)
-    
     if (!confirm(`¿Está seguro de eliminar la secuencia para ${sequence.document_type?.name}?`)) {
-      console.log('Delete cancelled by user')
       return
     }
 
     try {
-      console.log('Calling delete service for sequence ID:', sequence.id)
       await deleteSequence(sequence.id)
-      console.log('Delete successful')
       onSequenceChange?.()
     } catch (error: any) {
-      console.error('Error deleting sequence:', error)
-      console.error('Error message:', error.message)
       // Error is already set by the hook
     }
   }, [deleteSequence, onSequenceChange])
@@ -161,7 +138,6 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
       await resetSequence(sequence.id)
       onSequenceChange?.()
     } catch (error: any) {
-      console.error('Error resetting sequence:', error)
       // Error is already set by the hook
     }
   }, [resetSequence, onSequenceChange])
@@ -213,9 +189,6 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
   const availableDocumentTypes = useMemo(() => {
     const usedTypeIds = sequences.map(seq => seq.fiscal_document_type_id)
     const availableTypes = documentTypes.filter(dt => !usedTypeIds.includes(dt.id))
-    console.log('Available document types:', availableTypes)
-    console.log('All document types:', documentTypes)
-    console.log('Used type IDs:', usedTypeIds)
     return availableTypes
   }, [sequences, documentTypes])
 
@@ -375,7 +348,6 @@ const FiscalSequenceManager: React.FC<FiscalSequenceManagerProps> = ({ onSequenc
             label="Tipo de Documento"
             value={formData.fiscal_document_type_id}
             onChange={(e) => {
-              console.log('Document type selected:', e.target.value)
               handleFormChange('fiscal_document_type_id', e.target.value)
             }}
             options={[

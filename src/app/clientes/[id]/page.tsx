@@ -61,7 +61,6 @@ export default function ClientDetailPage() {
       // Calculate statistics
       calculateStats(invoicesData)
     } catch (error) {
-      console.error('Error loading client data:', error)
     } finally {
       setLoading(false)
     }
@@ -128,7 +127,6 @@ export default function ClientDetailPage() {
       const filename = `Factura_${invoice.invoice_number}.pdf`
       downloadPDF(pdfBytes, filename)
     } catch (error) {
-      console.error('Error generating PDF:', error)
       alert('Error al generar el PDF')
     } finally {
       setPdfLoading(null)

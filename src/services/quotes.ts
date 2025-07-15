@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient'
 import { Client } from './clients'
 import { CreateInvoiceData, InvoiceService } from './invoices'
+import { SettingsService } from './settings'
 
 export interface QuoteItem {
   id: string
@@ -55,10 +56,20 @@ export interface UpdateQuoteData extends Partial<CreateQuoteData> {
 
 export class QuoteService {
   static async getAll(includeClient: boolean = true): Promise<Quote[]> {
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
     if (includeClient) {
       const { data, error } = await supabase
-        .from('quotes_with_details')
-        .select('*')
+        .from('quotes')
+        .select(`
+          *,
+          client:clients(*),
+          items:quote_items(*)
+        `)
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -81,6 +92,12 @@ export class QuoteService {
   }
 
   static async getById(id: string): Promise<Quote | null> {
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
     const { data, error } = await supabase
       .from('quotes')
       .select('*, client:clients(*), items:quote_items(*)')
@@ -98,10 +115,20 @@ export class QuoteService {
   }
 
   static async create(quoteData: CreateQuoteData): Promise<Quote> {
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
     const { items, ...quote } = quoteData
 
     const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
-    const taxAmount = subtotal * 0.19
+    
+    // Get user settings for tax rate
+    const settings = await SettingsService.getSettings()
+    const taxRate = settings?.tax_rate || 18
+    const taxAmount = subtotal * (taxRate / 100)
     const total = subtotal + taxAmount
 
     const { data: quoteRecord, error: quoteError } = await supabase
@@ -148,7 +175,11 @@ export class QuoteService {
 
     if (items) {
       const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
-      const taxAmount = subtotal * 0.19
+      
+      // Get user settings for tax rate
+      const settings = await SettingsService.getSettings()
+      const taxRate = settings?.tax_rate || 18
+      const taxAmount = subtotal * (taxRate / 100)
       const total = subtotal + taxAmount
 
       await supabase.from('quote_items').delete().eq('quote_id', id)
@@ -226,10 +257,6 @@ export class QuoteService {
       throw new Error('Esta cotización ya ha sido convertida a factura')
     }
 
-    // Permitir conversión desde cualquier estado, no solo 'accepted'
-    // if (quote.status !== 'accepted') {
-    //   throw new Error('La cotización debe estar aceptada antes de convertirla a factura')
-    // }
 
     const invoiceNumber = await InvoiceService.generateInvoiceNumber()
     
@@ -336,6 +363,12 @@ export class QuoteService {
   }
 
   static async generateQuoteNumber(): Promise<string> {
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
     const { data, error } = await supabase
       .from('quotes')
       .select('quote_number')

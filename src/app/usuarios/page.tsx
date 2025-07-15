@@ -87,7 +87,6 @@ function UsersPage() {
       if (error) throw error
       setUsers(data || [])
     } catch (error) {
-      console.error('Error loading users:', error)
     } finally {
       setLoading(false)
     }
@@ -103,7 +102,6 @@ function UsersPage() {
       if (error) throw error
       setRoles(data || [])
     } catch (error) {
-      console.error('Error loading roles:', error)
     }
   }
 
@@ -134,7 +132,6 @@ function UsersPage() {
       await loadUsers()
       alert(`Usuario ${!user.is_active ? 'activado' : 'desactivado'} exitosamente`)
     } catch (error) {
-      console.error('Error updating user status:', error)
       alert('Error al actualizar el estado del usuario')
     }
   }
@@ -151,7 +148,6 @@ function UsersPage() {
       await loadUsers()
       alert('Rol actualizado exitosamente')
     } catch (error) {
-      console.error('Error updating user role:', error)
       alert('Error al actualizar el rol')
     }
   }
@@ -204,8 +200,7 @@ function UsersPage() {
           })
 
         if (pendingError) {
-          console.error('Error saving pending invitation:', pendingError)
-        }
+          }
 
         alert(`La invitación se ha guardado pero el email no se pudo enviar.
 
@@ -224,7 +219,6 @@ Para completar el registro:
       setInviteErrors({})
       await loadUsers()
     } catch (error) {
-      console.error('Error inviting user:', error)
       alert('Error al enviar la invitación')
     } finally {
       setInviting(false)
@@ -286,7 +280,6 @@ Para completar el registro:
       })
 
       if (authError) {
-        console.error('Error creating user:', authError)
         
         // Mostrar instrucciones detalladas
         const instructions = `
@@ -313,9 +306,8 @@ Usuario no creado. Instrucciones para crear manualmente:
         // Copiar instrucciones al portapapeles
         try {
           await navigator.clipboard.writeText(instructions)
-          console.log('Instrucciones copiadas al portapapeles')
         } catch (e) {
-          console.error('No se pudo copiar al portapapeles:', e)
+          // Clipboard write failed
         }
         
         return
@@ -333,7 +325,6 @@ Usuario no creado. Instrucciones para crear manualmente:
           .eq('id', authData.user.id)
 
         if (updateError) {
-          console.error('Error updating user profile:', updateError)
         }
 
         const successMessage = `
@@ -350,9 +341,8 @@ Por favor, comparte estas credenciales de forma segura con el usuario.`
         // Copiar credenciales al portapapeles
         try {
           await navigator.clipboard.writeText(successMessage)
-          console.log('Credenciales copiadas al portapapeles')
         } catch (e) {
-          console.error('No se pudo copiar al portapapeles:', e)
+          // Clipboard write failed
         }
       }
 
@@ -361,7 +351,6 @@ Por favor, comparte estas credenciales de forma segura con el usuario.`
       setCreateErrors({})
       await loadUsers()
     } catch (error) {
-      console.error('Error creating user:', error)
       alert('Error inesperado al crear el usuario. Intenta desde el Dashboard de Supabase.')
     } finally {
       setCreating(false)
@@ -417,7 +406,7 @@ Por favor, comparte estas credenciales de forma segura con el usuario.`
       title: 'Acciones',
       render: (value: any, row: User) => (
         <div className="flex space-x-2">
-          {hasPermission('users', 'update') && row.id !== currentUser?.id && (
+          {row.id !== currentUser?.id && (
             <>
               <select
                 value={row.role_id || ''}
@@ -455,11 +444,9 @@ Por favor, comparte estas credenciales de forma segura con el usuario.`
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Usuarios</h1>
-        {hasPermission('users', 'create') && (
-          <Button onClick={() => setShowMethodModal(true)}>
-            Agregar Usuario
-          </Button>
-        )}
+        <Button onClick={() => setShowMethodModal(true)}>
+          Agregar Usuario
+        </Button>
       </div>
 
       <Card>

@@ -67,7 +67,6 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onSave, onCancel }) 
       const data = await ProductService.getCategories()
       setCategories(data)
     } catch (error) {
-      console.error('Error loading categories:', error)
     }
   }
 
@@ -143,7 +142,6 @@ const ProductForm: React.FC<ProductFormProps> = ({ product, onSave, onCancel }) 
 
       onSave()
     } catch (error) {
-      console.error('Error saving product:', error)
       alert('Error al guardar el producto')
     } finally {
       setLoading(false)

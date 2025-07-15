@@ -44,7 +44,6 @@ export default function ClientsPage() {
       setClients(data)
       setFilteredClients(data)
     } catch (error: any) {
-      console.error('Error loading clients:', error)
       setErrorMsg('Error al conectar con la base de datos: ' + (error.message || error.toString()))
     } finally {
       setLoading(false)
@@ -56,7 +55,6 @@ export default function ClientsPage() {
       const data = await ClientService.search(query)
       setFilteredClients(data)
     } catch (error) {
-      console.error('Error searching clients:', error)
     }
   }
 
@@ -76,7 +74,6 @@ export default function ClientsPage() {
         await ClientService.delete(client.id)
         await loadClients()
       } catch (error) {
-        console.error('Error deleting client:', error)
         alert('Error al eliminar el cliente')
       }
     }

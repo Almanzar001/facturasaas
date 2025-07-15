@@ -24,14 +24,31 @@ const ProductSearchAutocomplete: React.FC<ProductSearchAutocompleteProps> = ({
   const inputRef = useRef<HTMLInputElement>(null)
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
+  // Cargar todos los productos al inicio
   useEffect(() => {
-    if (debouncedSearchTerm.length >= 2) {
+    loadAllProducts()
+  }, [])
+
+  useEffect(() => {
+    if (debouncedSearchTerm.length >= 1) {
       searchProducts(debouncedSearchTerm)
-    } else {
-      setProducts([])
-      setIsOpen(false)
+    } else if (debouncedSearchTerm.length === 0) {
+      loadAllProducts()
     }
   }, [debouncedSearchTerm])
+
+  const loadAllProducts = async () => {
+    try {
+      setLoading(true)
+      const allProducts = await ProductService.getAll()
+      setProducts(allProducts.slice(0, 20)) // Limitar a 20 para no sobrecargar
+      setSelectedIndex(-1)
+    } catch (error) {
+      setProducts([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const searchProducts = async (query: string) => {
     try {
@@ -47,7 +64,6 @@ const ProductSearchAutocomplete: React.FC<ProductSearchAutocompleteProps> = ({
       setIsOpen(filtered.length > 0)
       setSelectedIndex(-1)
     } catch (error) {
-      console.error('Error searching products:', error)
       setProducts([])
       setIsOpen(false)
     } finally {
@@ -112,8 +128,9 @@ const ProductSearchAutocomplete: React.FC<ProductSearchAutocompleteProps> = ({
         onChange={(e) => setSearchTerm(e.target.value)}
         onKeyDown={handleKeyDown}
         onFocus={() => {
-          if (products.length > 0) {
-            setIsOpen(true)
+          setIsOpen(true)
+          if (products.length === 0) {
+            loadAllProducts()
           }
         }}
         onBlur={() => {

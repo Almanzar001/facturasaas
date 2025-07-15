@@ -62,12 +62,9 @@ const FiscalDocumentSelectorAutoCreate: React.FC<FiscalDocumentSelectorProps> = 
 
   const loadDocumentTypes = async () => {
     try {
-      console.log('🔄 Cargando tipos de documento...')
       const types = await FiscalDocumentService.getDocumentTypes()
-      console.log('✅ Tipos cargados:', types.length)
       setDocumentTypes(types)
     } catch (error) {
-      console.error('❌ Error cargando tipos:', error)
     } finally {
       setLoading(false)
     }
@@ -76,8 +73,6 @@ const FiscalDocumentSelectorAutoCreate: React.FC<FiscalDocumentSelectorProps> = 
   const checkActiveSequence = async (typeId: string) => {
     try {
       setSequenceStatus('checking')
-      console.log('🔍 Verificando secuencia para tipo:', typeId)
-      console.log('🔍 FiscalSequenceManagementService disponible:', typeof FiscalSequenceManagementService)
       
       // Encontrar el tipo seleccionado
       const type = documentTypes.find(t => t.id === typeId)
@@ -85,19 +80,14 @@ const FiscalDocumentSelectorAutoCreate: React.FC<FiscalDocumentSelectorProps> = 
       
       // Buscar secuencia personalizada primero
       setSequenceStatus('creating')
-      console.log('🔍 Buscando secuencia personalizada para tipo ID:', typeId)
       
       let customSequence = null
       try {
-        console.log('🔄 Llamando a FiscalSequenceManagementService...')
         customSequence = await FiscalSequenceManagementService.getSequenceByDocumentType(typeId)
-        console.log('🔍 Resultado de búsqueda personalizada:', customSequence)
       } catch (error) {
-        console.error('❌ Error en servicio personalizado:', error)
       }
       
       if (customSequence) {
-        console.log('✅ Secuencia personalizada encontrada:', customSequence.id)
         setActiveSequence(customSequence as any) // Cast para compatibilidad
         setSequenceStatus('ready')
         
@@ -110,15 +100,12 @@ const FiscalDocumentSelectorAutoCreate: React.FC<FiscalDocumentSelectorProps> = 
           customSequence.padding_length
         )
         setNextNumber(next)
-        console.log('📝 Próximo número personalizado será:', next)
       } else {
-        console.log('🔄 No hay secuencia personalizada, usando sistema por defecto...')
         
         // Fallback al sistema original
         const sequence = await FiscalDocumentService.getActiveSequenceForType(typeId)
         
         if (sequence) {
-          console.log('✅ Secuencia por defecto encontrada/creada:', sequence.id)
           setActiveSequence(sequence)
           setSequenceStatus('ready')
           
@@ -128,16 +115,13 @@ const FiscalDocumentSelectorAutoCreate: React.FC<FiscalDocumentSelectorProps> = 
             sequence.current_number + 1
           )
           setNextNumber(next)
-          console.log('📝 Próximo número por defecto será:', next)
         } else {
-          console.log('❌ No se pudo crear/encontrar secuencia')
           setActiveSequence(null)
           setNextNumber('')
           setSequenceStatus('error')
         }
       }
     } catch (error) {
-      console.error('❌ Error verificando secuencia:', error)
       setActiveSequence(null)
       setNextNumber('')
       setSequenceStatus('error')
@@ -145,7 +129,6 @@ const FiscalDocumentSelectorAutoCreate: React.FC<FiscalDocumentSelectorProps> = 
   }
 
   const handleTypeChange = (typeId: string) => {
-    console.log('🔄 Tipo cambiado a:', typeId)
     onChange({
       documentTypeId: typeId,
       clientTaxId: value.clientTaxId

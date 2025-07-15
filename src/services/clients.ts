@@ -30,6 +30,12 @@ export interface UpdateClientData extends Partial<CreateClientData> {
 
 export class ClientService {
   static async getAll(): Promise<Client[]> {
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
     const { data, error } = await supabase
       .from('clients')
       .select('*')
@@ -60,7 +66,12 @@ export class ClientService {
   }
 
   static async create(clientData: CreateClientData): Promise<Client> {
-    // Crear sin user_id temporalmente
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
     const { data, error } = await supabase
       .from('clients')
       .insert([clientData])

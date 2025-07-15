@@ -114,7 +114,6 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, onSave, onCancel }) => 
 
       onSave()
     } catch (error) {
-      console.error('Error saving client:', error)
       alert('Error al guardar el cliente')
     } finally {
       setLoading(false)

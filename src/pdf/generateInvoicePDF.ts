@@ -79,7 +79,6 @@ export class InvoicePDFGenerator {
             // Si falla, intentar como JPEG
             logoImageEmbed = await this.doc.embedJpg(new Uint8Array(logoImage))
           } catch (error) {
-            console.error('Error embedding logo:', error)
             logoImageEmbed = null
           }
         }
@@ -100,7 +99,6 @@ export class InvoicePDFGenerator {
           this.margin += logoDims.width + 20
         }
       } catch (error) {
-        console.error('Error loading logo:', error)
       }
     }
     
@@ -239,8 +237,9 @@ export class InvoicePDFGenerator {
     })
     this.currentY -= 25
 
-    // Client name
-    this.currentPage.drawText(client.name, {
+    // Client name - with validation
+    const clientName = client?.name || 'Cliente no encontrado'
+    this.currentPage.drawText(clientName, {
       x: this.margin,
       y: this.currentY,
       size: 12,
@@ -249,8 +248,8 @@ export class InvoicePDFGenerator {
     })
     this.currentY -= 20
 
-    // Client tax ID (RNC/Cédula)
-    const taxId = invoice.client_tax_id || client.identification
+    // Client tax ID (RNC/Cédula) - with validation
+    const taxId = invoice.client_tax_id || client?.identification
     if (taxId) {
       this.currentPage.drawText(`RNC/Cédula: ${taxId}`, {
         x: this.margin,
@@ -263,7 +262,7 @@ export class InvoicePDFGenerator {
     }
 
     // Client address
-    if (client.address) {
+    if (client?.address) {
       this.currentPage.drawText(`Dirección: ${client.address}`, {
         x: this.margin,
         y: this.currentY,
@@ -275,7 +274,7 @@ export class InvoicePDFGenerator {
     }
 
     // Client city
-    if (client.city) {
+    if (client?.city) {
       this.currentPage.drawText(`Ciudad: ${client.city}`, {
         x: this.margin,
         y: this.currentY,
@@ -288,8 +287,8 @@ export class InvoicePDFGenerator {
 
     // Client contact
     const contactInfo = []
-    if (client.phone) contactInfo.push(`Tel: ${client.phone}`)
-    if (client.email) contactInfo.push(`Email: ${client.email}`)
+    if (client?.phone) contactInfo.push(`Tel: ${client.phone}`)
+    if (client?.email) contactInfo.push(`Email: ${client.email}`)
     
     if (contactInfo.length > 0) {
       this.currentPage.drawText(contactInfo.join(' | '), {

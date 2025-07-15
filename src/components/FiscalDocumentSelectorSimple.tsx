@@ -59,12 +59,9 @@ const FiscalDocumentSelectorSimple: React.FC<FiscalDocumentSelectorProps> = ({
 
   const loadDocumentTypes = async () => {
     try {
-      console.log('Cargando tipos de documento...')
       const types = await FiscalDocumentService.getDocumentTypes()
-      console.log('Tipos cargados:', types.length)
       setDocumentTypes(types)
     } catch (error) {
-      console.error('Error cargando tipos:', error)
     } finally {
       setLoading(false)
     }
@@ -72,7 +69,6 @@ const FiscalDocumentSelectorSimple: React.FC<FiscalDocumentSelectorProps> = ({
 
   const checkActiveSequence = async (typeId: string) => {
     try {
-      console.log('Verificando secuencia para tipo:', typeId)
       
       // Encontrar el tipo seleccionado
       const type = documentTypes.find(t => t.id === typeId)
@@ -80,7 +76,6 @@ const FiscalDocumentSelectorSimple: React.FC<FiscalDocumentSelectorProps> = ({
       
       // Buscar secuencia activa
       const sequence = await FiscalDocumentService.getActiveSequenceForType(typeId)
-      console.log('Secuencia encontrada:', sequence?.id || 'ninguna')
       setActiveSequence(sequence)
       
       // Calcular próximo número
@@ -90,20 +85,16 @@ const FiscalDocumentSelectorSimple: React.FC<FiscalDocumentSelectorProps> = ({
           sequence.current_number + 1
         )
         setNextNumber(next)
-        console.log('Próximo número:', next)
       } else {
         setNextNumber('')
-        console.log('No hay secuencia activa')
       }
     } catch (error) {
-      console.error('Error verificando secuencia:', error)
       setActiveSequence(null)
       setNextNumber('')
     }
   }
 
   const handleTypeChange = (typeId: string) => {
-    console.log('Tipo cambiado a:', typeId)
     onChange({
       documentTypeId: typeId,
       clientTaxId: value.clientTaxId

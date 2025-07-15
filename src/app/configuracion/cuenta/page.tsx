@@ -115,7 +115,6 @@ function AccountPage() {
 
       setProfileSuccess('Perfil actualizado exitosamente')
     } catch (error: any) {
-      console.error('Error updating profile:', error)
       setProfileError('Error al actualizar el perfil: ' + (error.message || 'Error desconocido'))
     } finally {
       setLoading(false)
@@ -159,7 +158,6 @@ function AccountPage() {
 
       setPasswordSuccess('Contraseña cambiada exitosamente')
     } catch (error: any) {
-      console.error('Error changing password:', error)
       setPasswordError('Error al cambiar la contraseña: ' + (error.message || 'Error desconocido'))
     } finally {
       setLoading(false)

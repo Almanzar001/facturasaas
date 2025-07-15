@@ -41,6 +41,7 @@ export class AuthService {
   // Login de usuario
   static async login({ email, password }: LoginData): Promise<AuthResponse> {
     try {
+      
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -54,32 +55,35 @@ export class AuthService {
         return { user: null, error: 'No se pudo autenticar al usuario' }
       }
 
-      // Obtener información completa del usuario
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, email, full_name, company_name, role_id, is_active, last_login, created_at, updated_at')
-        .eq('id', authData.user.id)
-        .single()
 
-      if (userError) {
+      // Obtener información del usuario y actualizar último login en paralelo
+      const [userResult, updateResult] = await Promise.all([
+        supabase
+          .from('users')
+          .select('id, email, full_name, company_name, role_id, is_active, last_login, created_at, updated_at')
+          .eq('id', authData.user.id)
+          .single(),
+        
+        supabase
+          .from('users')
+          .update({ last_login: new Date().toISOString() })
+          .eq('id', authData.user.id)
+      ])
+
+      if (userResult.error) {
         return { user: null, error: 'Error al obtener información del usuario' }
       }
 
       // Verificar si el usuario está activo
-      if (!userData.is_active) {
+      if (!userResult.data.is_active) {
         await supabase.auth.signOut()
         return { user: null, error: 'Tu cuenta ha sido desactivada' }
       }
 
-      // Actualizar último login
-      await supabase
-        .from('users')
-        .update({ last_login: new Date().toISOString() })
-        .eq('id', authData.user.id)
 
       return { 
         user: {
-          ...userData,
+          ...userResult.data,
           id: authData.user.id,
           email: authData.user.email!
         }, 
@@ -126,8 +130,7 @@ export class AuthService {
       })
 
       if (profileError) {
-        console.error('Error creating profile:', profileError)
-        // No eliminar el usuario de auth, el trigger debería haberlo creado
+          // No eliminar el usuario de auth, el trigger debería haberlo creado
       }
 
       // Si hay rol específico, actualizarlo
@@ -165,7 +168,6 @@ export class AuthService {
         error: null 
       }
     } catch (error) {
-      console.error('Registration error:', error)
       return { user: null, error: 'Error al registrar usuario' }
     }
   }
@@ -182,18 +184,18 @@ export class AuthService {
       
       if (!user) return null
 
-      const { data: userData } = await supabase
-        .from('users')
-        .select('id, email, full_name, company_name, role_id, is_active, last_login, created_at, updated_at')
-        .eq('id', user.id)
-        .single()
-
-      if (!userData || !userData.is_active) return null
-
+      // Solo hacer la consulta a la BD si realmente necesitamos más datos
+      // Por ahora usar los datos básicos del auth
       return {
-        ...userData,
         id: user.id,
-        email: user.email!
+        email: user.email!,
+        full_name: user.user_metadata?.full_name || '',
+        company_name: user.user_metadata?.company_name || '',
+        role_id: '',
+        role_name: 'user',
+        is_active: true,
+        created_at: user.created_at,
+        updated_at: user.updated_at || user.created_at
       }
     } catch (error) {
       return null

@@ -52,7 +52,6 @@ function ConfigurationPage() {
         })
       }
     } catch (error) {
-      console.error('Error loading settings:', error)
     } finally {
       setLoading(false)
     }
@@ -65,7 +64,6 @@ function ConfigurationPage() {
       setSettings(updatedSettings)
       alert('Configuración guardada exitosamente')
     } catch (error) {
-      console.error('Error saving settings:', error)
       alert('Error al guardar la configuración')
     } finally {
       setSaving(false)
@@ -100,7 +98,6 @@ function ConfigurationPage() {
       setSettings(updatedSettings)
       alert('Logo subido exitosamente')
     } catch (error) {
-      console.error('Error uploading logo:', error)
       alert('Error al subir el logo')
     } finally {
       setUploadingLogo(false)
@@ -118,7 +115,6 @@ function ConfigurationPage() {
       setSettings(updatedSettings)
       alert('Logo eliminado')
     } catch (error) {
-      console.error('Error removing logo:', error)
       alert('Error al eliminar el logo')
     } finally {
       setSaving(false)

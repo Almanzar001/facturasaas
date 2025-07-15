@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { InvoiceService, Invoice } from '@/services/invoices'
 import { ClientService, Client } from '@/services/clients'
 import { PaymentService, Payment } from '@/services/payments'
-import { useInvoicesPagination } from '@/hooks/useInvoicesPagination'
 import Button from '@/components/Button'
 import Table from '@/components/Table'
 import Modal from '@/components/Modal'
@@ -53,7 +52,7 @@ function InvoicesPageContent() {
       setInvoices(data)
       setFilteredInvoices(data)
     } catch (error) {
-      console.error('Error loading invoices:', error)
+      // Handle error silently for now
     } finally {
       setLoading(false)
     }
@@ -98,7 +97,6 @@ function InvoicesPageContent() {
       await InvoiceService.updateStatus(invoice.id, newStatus)
       await loadInvoices()
     } catch (error) {
-      console.error('Error updating invoice status:', error)
       alert('Error al actualizar el estado de la factura')
     }
   }
@@ -109,7 +107,6 @@ function InvoicesPageContent() {
         await InvoiceService.delete(invoice.id)
         await loadInvoices()
       } catch (error) {
-        console.error('Error deleting invoice:', error)
         alert('Error al eliminar la factura')
       }
     }
@@ -122,9 +119,26 @@ function InvoicesPageContent() {
   }
 
   const handleDownloadPDF = async (invoice: Invoice) => {
-    if (!invoice.client || !invoice.items || invoice.items.length === 0) {
-      alert('No se puede generar el PDF: faltan datos de la factura')
+    // Validaciones más amigables
+    if (!invoice.client) {
+      alert('⚠️ No se puede generar el PDF: falta información del cliente')
       return
+    }
+    
+    // Si no hay items cargados, intentar cargar la factura completa
+    if (!invoice.items || invoice.items.length === 0) {
+      try {
+        const fullInvoice = await InvoiceService.getById(invoice.id)
+        if (!fullInvoice || !fullInvoice.items || fullInvoice.items.length === 0) {
+          alert('⚠️ No se puede generar el PDF: no hay productos en la factura')
+          return
+        }
+        // Usar la factura completa
+        invoice = fullInvoice
+      } catch (error) {
+        alert('⚠️ Error al cargar los datos de la factura')
+        return
+      }
     }
 
     try {
@@ -148,8 +162,8 @@ function InvoicesPageContent() {
 
       const invoiceData: InvoicePDFData = {
         invoice,
-        client: invoice.client,
-        items: invoice.items,
+        client: invoice.client!,
+        items: invoice.items!,
         payments,
         company
       }
@@ -161,7 +175,6 @@ function InvoicesPageContent() {
       const { downloadPDF } = await import('@/pdf/generateInvoicePDF')
       downloadPDF(pdfBytes, filename)
     } catch (error) {
-      console.error('Error generating PDF:', error)
       alert('Error al generar el PDF')
     } finally {
       setPdfLoading(null)
@@ -260,7 +273,6 @@ function InvoicesPageContent() {
             variant="secondary"
             onClick={() => handleDownloadPDF(row)}
             loading={pdfLoading === row.id}
-            disabled={!row.client || !row.items || row.items.length === 0}
           >
             PDF
           </Button>

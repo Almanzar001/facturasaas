@@ -45,12 +45,9 @@ const FiscalDocumentSelectorCustom: React.FC<FiscalDocumentSelectorCustomProps> 
 
   const loadDocumentTypes = async () => {
     try {
-      console.log('🔄 Cargando tipos de documento...')
       const types = await FiscalDocumentService.getDocumentTypes()
-      console.log('✅ Tipos cargados:', types)
       setDocumentTypes(types)
     } catch (error) {
-      console.error('❌ Error cargando tipos:', error)
     } finally {
       setLoading(false)
     }
@@ -58,14 +55,10 @@ const FiscalDocumentSelectorCustom: React.FC<FiscalDocumentSelectorCustomProps> 
 
   const checkCustomSequence = async (typeId: string) => {
     try {
-      console.log('🔍 Buscando secuencia personalizada para:', typeId)
-      console.log('🔍 Todos los tipos de documento disponibles:', documentTypes)
-      console.log('🔍 Tipo seleccionado:', documentTypes.find(t => t.id === typeId))
       
       const customSequence = await FiscalSequenceManagementService.getSequenceByDocumentType(typeId)
       
       if (customSequence) {
-        console.log('✅ Secuencia personalizada encontrada:', customSequence)
         setActiveSequence(customSequence)
         
         // Calcular próximo número
@@ -77,21 +70,17 @@ const FiscalDocumentSelectorCustom: React.FC<FiscalDocumentSelectorCustomProps> 
           customSequence.padding_length
         )
         setNextNumber(next)
-        console.log('📝 Próximo número personalizado:', next)
       } else {
-        console.log('❌ No se encontró secuencia personalizada')
         setActiveSequence(null)
         setNextNumber('')
       }
     } catch (error) {
-      console.error('❌ Error verificando secuencia:', error)
       setActiveSequence(null)
       setNextNumber('')
     }
   }
 
   const handleTypeChange = (typeId: string) => {
-    console.log('🔄 Tipo cambiado a:', typeId)
     onChange({
       documentTypeId: typeId,
       clientTaxId: value.clientTaxId

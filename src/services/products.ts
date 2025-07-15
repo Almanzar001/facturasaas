@@ -28,6 +28,12 @@ export interface UpdateProductData extends Partial<CreateProductData> {
 
 export class ProductService {
   static async getAll(includeInactive: boolean = false): Promise<Product[]> {
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
     let query = supabase
       .from('products')
       .select('*')
@@ -64,13 +70,21 @@ export class ProductService {
   }
 
   static async create(productData: CreateProductData): Promise<Product> {
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
+    const productToCreate = {
+      ...productData,
+      unit: productData.unit || 'unidad',
+      is_active: productData.is_active !== undefined ? productData.is_active : true
+    }
+
     const { data, error } = await supabase
       .from('products')
-      .insert([{
-        ...productData,
-        unit: productData.unit || 'unidad',
-        is_active: productData.is_active !== undefined ? productData.is_active : true
-      }])
+      .insert([productToCreate])
       .select('*')
       .single()
 
@@ -175,7 +189,6 @@ export class ProductService {
       .single()
 
     if (error) {
-      console.error('Product statistics view not available, falling back to calculation')
       // Fallback to old method if view doesn't exist
       const { data: productsData, error: productsError } = await supabase
         .from('products')

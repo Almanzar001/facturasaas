@@ -52,7 +52,6 @@ function ConfigurationPage() {
       await updateSettings(formData)
       alert('Configuración guardada exitosamente')
     } catch (error) {
-      console.error('Error saving settings:', error)
       alert('Error al guardar la configuración')
     } finally {
       setSaving(false)
@@ -85,7 +84,6 @@ function ConfigurationPage() {
       })
       alert('Logo subido exitosamente')
     } catch (error: any) {
-      console.error('Error uploading logo:', error)
       if (error.message?.includes('storage/bucket-not-found')) {
         alert('Error: El bucket "company-assets" no existe. Por favor, ejecuta el script SQL primero.')
       } else if (error.message?.includes('storage/object-not-found')) {
@@ -108,7 +106,6 @@ function ConfigurationPage() {
       })
       alert('Logo eliminado')
     } catch (error) {
-      console.error('Error removing logo:', error)
       alert('Error al eliminar el logo')
     } finally {
       setSaving(false)

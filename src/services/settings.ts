@@ -122,7 +122,6 @@ export class SettingsService {
         .upload(filePath, compressedFile)
 
       if (uploadError) {
-        console.error('Upload error:', uploadError)
         throw uploadError
       }
 
@@ -132,7 +131,6 @@ export class SettingsService {
 
       return data.publicUrl
     } catch (error) {
-      console.error('Error uploading logo:', error)
       throw error
     }
   }

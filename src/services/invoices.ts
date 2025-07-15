@@ -65,10 +65,20 @@ export interface UpdateInvoiceData extends Partial<CreateInvoiceData> {
 
 export class InvoiceService {
   static async getAll(includeClient: boolean = true): Promise<Invoice[]> {
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
     if (includeClient) {
       const { data, error } = await supabase
-        .from('invoices_with_details')
-        .select('*')
+        .from('invoices')
+        .select(`
+          *,
+          client:clients(*),
+          items:invoice_items(*)
+        `)
         .order('created_at', { ascending: false })
         .limit(50)
 
@@ -96,16 +106,26 @@ export class InvoiceService {
     const from = (page - 1) * pageSize
     const to = from + pageSize - 1
 
-    // Primero obtener el conteo total
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
+    // Get total count for all invoices
     const { count } = await supabase
       .from('invoices')
       .select('*', { count: 'exact', head: true })
 
-    // Luego obtener los datos paginados
+    // Get paginated data
     if (includeClient) {
       const { data, error } = await supabase
-        .from('invoices_with_details')
-        .select('*')
+        .from('invoices')
+        .select(`
+          *,
+          client:clients(*),
+          items:invoice_items(*)
+        `)
         .order('created_at', { ascending: false })
         .range(from, to)
 
@@ -131,8 +151,12 @@ export class InvoiceService {
 
   static async getById(id: string): Promise<Invoice | null> {
     const { data, error } = await supabase
-      .from('invoices_with_details')
-      .select('*')
+      .from('invoices')
+      .select(`
+        *,
+        client:clients(*),
+        items:invoice_items(*)
+      `)
       .eq('id', id)
       .single()
 
@@ -147,6 +171,12 @@ export class InvoiceService {
   }
 
   static async create(invoiceData: CreateInvoiceData): Promise<Invoice> {
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
     const { items, apply_tax = true, tax_rate = 18, ...invoice } = invoiceData
 
     const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
@@ -288,9 +318,18 @@ export class InvoiceService {
   }
 
   static async getByClient(clientId: string): Promise<Invoice[]> {
+    // Get current user for authentication
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      throw new Error('No authenticated user')
+    }
+
     const { data, error } = await supabase
-      .from('invoices_with_details')
-      .select('*')
+      .from('invoices')
+      .select(`
+        *,
+        client:clients(*)
+      `)
       .eq('client_id', clientId)
       .order('date', { ascending: false })
 
@@ -357,27 +396,82 @@ export class InvoiceService {
     paidAmount: number
     pendingAmount: number
   }> {
-    const { data, error } = await supabase
-      .from('invoice_statistics')
+    try {
+      // Intentar usar la vista de estadísticas si existe
+      const { data: viewData, error: viewError } = await supabase
+        .from('invoice_statistics')
+        .select('*')
+        .single()
+
+      if (!viewError && viewData) {
+        const stats = viewData || {}
+        return {
+          total: stats.total_invoices || 0,
+          draft: stats.draft_invoices || 0,
+          sent: stats.sent_invoices || 0,
+          paid: stats.paid_invoices || 0,
+          overdue: stats.overdue_invoices || 0,
+          totalAmount: stats.total_amount || 0,
+          paidAmount: stats.paid_amount || 0,
+          pendingAmount: stats.sent_amount + stats.overdue_amount || 0
+        }
+      }
+    } catch (error) {
+      // Invoice statistics view not available, using fallback calculation
+    }
+
+    // Fallback: calcular estadísticas directamente desde la tabla invoices
+    const { data: invoicesData, error: invoicesError } = await supabase
+      .from('invoices')
       .select('*')
-      .single()
 
-    if (error) {
-      throw new Error(`Error fetching invoice stats: ${error.message}`)
+    if (invoicesError) {
+      throw new Error(`Error fetching invoices: ${invoicesError.message}`)
     }
 
-    const stats = data || {}
-
-    return {
-      total: stats.total_invoices || 0,
-      draft: stats.draft_invoices || 0,
-      sent: stats.sent_invoices || 0,
-      paid: stats.paid_invoices || 0,
-      overdue: stats.overdue_invoices || 0,
-      totalAmount: stats.total_amount || 0,
-      paidAmount: stats.paid_amount || 0,
-      pendingAmount: stats.sent_amount + stats.overdue_amount || 0
+    const invoices = invoicesData || []
+    const today = new Date().toISOString().split('T')[0]
+    
+    let stats = {
+      total: invoices.length,
+      draft: 0,
+      sent: 0,
+      paid: 0,
+      overdue: 0,
+      totalAmount: 0,
+      paidAmount: 0,
+      pendingAmount: 0
     }
+
+    invoices.forEach(invoice => {
+      stats.totalAmount += invoice.total || 0
+      
+      switch (invoice.status) {
+        case 'draft':
+          stats.draft++
+          break
+        case 'sent':
+          stats.sent++
+          stats.pendingAmount += invoice.total || 0
+          break
+        case 'paid':
+          stats.paid++
+          stats.paidAmount += invoice.total || 0
+          break
+        case 'overdue':
+          stats.overdue++
+          stats.pendingAmount += invoice.total || 0
+          break
+      }
+
+      // Verificar si una factura enviada está vencida
+      if (invoice.status === 'sent' && invoice.due_date && invoice.due_date < today) {
+        stats.sent--
+        stats.overdue++
+      }
+    })
+
+    return stats
   }
 
   static async generateInvoiceNumber(): Promise<string> {

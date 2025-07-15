@@ -35,7 +35,6 @@ export default function ExpensesPage() {
       setExpenses(data)
       setFilteredExpenses(data)
     } catch (error) {
-      console.error('Error loading expenses:', error)
     } finally {
       setLoading(false)
     }
@@ -81,7 +80,6 @@ export default function ExpensesPage() {
         await ExpenseService.delete(expense.id)
         await loadExpenses()
       } catch (error) {
-        console.error('Error deleting expense:', error)
         alert('Error al eliminar el gasto')
       }
     }

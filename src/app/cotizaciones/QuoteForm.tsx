@@ -6,7 +6,6 @@ import { ClientService, Client } from '@/services/clients'
 import { ProductService, Product } from '@/services/products'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
-import Select from '@/components/Select'
 import Textarea from '@/components/Textarea'
 import { FormGroup, FormActions } from '@/components/FormField'
 import ClientSearchAutocomplete from '@/components/ClientSearchAutocomplete'
@@ -14,6 +13,8 @@ import ProductSearchAutocomplete from '@/components/ProductSearchAutocomplete'
 import { validateRequired } from '@/utils/validators'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { generateQuotePDF, downloadPDF, QuotePDFData } from '@/pdf/generateQuotePDF'
+import { SettingsService } from '@/services/settings'
+import { calculateQuoteTotals } from '@/utils/calculateTotals'
 
 interface QuoteFormProps {
   quote?: Quote | null
@@ -65,10 +66,12 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
   const [products, setProducts] = useState<Product[]>([])
   const [selectedProduct, setSelectedProduct] = useState('')
   const [pdfLoading, setPdfLoading] = useState(false)
+  const [settings, setSettings] = useState<any>(null)
 
   useEffect(() => {
     loadClients()
     loadProducts()
+    loadSettings()
     if (!quote) {
       generateQuoteNumber()
     }
@@ -100,7 +103,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
       const data = await ClientService.getAll()
       setClients(data)
     } catch (error) {
-      console.error('Error loading clients:', error)
+      // Handle error silently for now
     }
   }
 
@@ -109,7 +112,16 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
       const data = await ProductService.getAll()
       setProducts(data)
     } catch (error) {
-      console.error('Error loading products:', error)
+      // Handle error silently for now
+    }
+  }
+
+  const loadSettings = async () => {
+    try {
+      const data = await SettingsService.getSettings()
+      setSettings(data)
+    } catch (error) {
+      // Handle error silently for now
     }
   }
 
@@ -118,7 +130,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
       const number = await QuoteService.generateQuoteNumber()
       setFormData(prev => ({ ...prev, quote_number: number }))
     } catch (error) {
-      console.error('Error generating quote number:', error)
+      // Handle error silently for now
     }
   }
 
@@ -174,10 +186,8 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
   }
 
   const calculateTotals = () => {
-    const subtotal = formData.items.reduce((sum, item) => sum + item.total, 0)
-    const tax = subtotal * 0.19
-    const total = subtotal + tax
-    return { subtotal, tax, total }
+    const taxRate = settings?.tax_rate || 18
+    return calculateQuoteTotals(formData.items, taxRate)
   }
 
   const validateForm = (): boolean => {
@@ -239,7 +249,6 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
 
       onSave()
     } catch (error) {
-      console.error('Error saving quote:', error)
       alert('Error al guardar la cotización')
     } finally {
       setLoading(false)
@@ -247,8 +256,14 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
   }
 
   const handleGeneratePDF = async () => {
-    if (!formData.client_id || formData.items.length === 0) {
-      alert('Debe seleccionar un cliente y agregar productos antes de generar el PDF')
+    // Validaciones más amigables
+    if (!formData.client_id) {
+      alert('⚠️ Debe seleccionar un cliente antes de generar el PDF')
+      return
+    }
+    
+    if (formData.items.length === 0) {
+      alert('⚠️ Debe agregar al menos un producto antes de generar el PDF')
       return
     }
 
@@ -256,20 +271,69 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
       setPdfLoading(true)
       
       const client = clients.find(c => c.id === formData.client_id)
+      
       if (!client) {
         alert('Cliente no encontrado')
         return
       }
 
-      const company = {
-        name: 'Su Empresa',
-        address: 'Dirección de la empresa',
-        phone: '+57 300 123 4567',
-        email: 'contacto@suempresa.com',
-        nit: '900.123.456-7'
+      // Calcular totales
+      const totals = calculateTotals()
+
+      // Obtener configuración de la empresa
+      const settings = await SettingsService.getSettings()
+      
+      if (!settings) {
+        alert('⚠️ Error al obtener la configuración de la empresa. Usando valores por defecto.')
+        // Crear configuración temporal por defecto
+        const defaultSettings = {
+          company_name: 'Mi Empresa',
+          company_address: 'Dirección de la empresa',
+          company_phone: '+1 (809) 123-4567',
+          company_email: 'contacto@miempresa.com',
+          company_rnc: '000-000000-0',
+          tax_rate: 18,
+          currency: 'RD$'
+        }
+        
+        const quoteData: QuotePDFData = {
+          quote: {
+            id: 'preview',
+            user_id: '',
+            client_id: formData.client_id,
+            quote_number: formData.quote_number,
+            date: formData.date,
+            expiry_date: formData.expiry_date,
+            status: formData.status,
+            subtotal: totals.subtotal,
+            tax_amount: totals.tax,
+            total: totals.total,
+            notes: formData.notes,
+            converted_to_invoice: undefined,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          client,
+          items: formData.items.map(item => ({
+            id: 'preview',
+            quote_id: 'preview',
+            product_id: item.product_id,
+            product_name: item.product_name,
+            description: item.description,
+            quantity: item.quantity,
+            price: item.price,
+            total: item.total,
+            created_at: new Date().toISOString()
+          })),
+          settings: defaultSettings as any
+        }
+
+        const pdfBytes = await generateQuotePDF(quoteData)
+        const filename = `Cotizacion_${formData.quote_number || 'Preview'}.pdf`
+        downloadPDF(pdfBytes, filename)
+        return
       }
 
-      const totals = calculateTotals()
       const quoteData: QuotePDFData = {
         quote: {
           id: 'preview',
@@ -299,15 +363,16 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
           total: item.total,
           created_at: new Date().toISOString()
         })),
-        company
+        settings
       }
 
       const pdfBytes = await generateQuotePDF(quoteData)
+      
       const filename = `Cotizacion_${formData.quote_number || 'Preview'}.pdf`
+      
       downloadPDF(pdfBytes, filename)
     } catch (error) {
-      console.error('Error generating PDF:', error)
-      alert('Error al generar el PDF')
+      alert(`Error al generar el PDF: ${error instanceof Error ? error.message : 'Error desconocido'}`)
     } finally {
       setPdfLoading(false)
     }
@@ -474,7 +539,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
                   <span>{formatCurrency(totals.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>IVA (19%):</span>
+                  <span>ITBIS ({settings?.tax_rate || 18}%):</span>
                   <span>{formatCurrency(totals.tax)}</span>
                 </div>
                 <div className="flex justify-between text-lg font-medium border-t pt-2">
@@ -509,7 +574,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
           variant="secondary"
           onClick={handleGeneratePDF}
           loading={pdfLoading}
-          disabled={loading || !formData.client_id || formData.items.length === 0}
+          disabled={loading}
         >
           Vista Previa PDF
         </Button>

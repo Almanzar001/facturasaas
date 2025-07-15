@@ -86,7 +86,6 @@ function ReportsPage() {
         }
       })
     } catch (error) {
-      console.error('Error loading report data:', error)
     } finally {
       setLoading(false)
     }
@@ -159,11 +158,9 @@ function ReportsPage() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Reportes</h1>
-        {hasPermission('reports', 'export') && (
-          <Button onClick={exportToCSV}>
-            Exportar CSV
-          </Button>
-        )}
+        <Button onClick={exportToCSV}>
+          Exportar CSV
+        </Button>
       </div>
 
       {/* Controles de filtro */}
@@ -284,16 +281,16 @@ function ReportsPage() {
           <CardContent>
             <div className="space-y-3">
               {reportData.dashboard.topClients.slice(0, 5).map((client: any, index: number) => (
-                <div key={client.id} className="flex justify-between items-center">
+                <div key={client.client_id || index} className="flex justify-between items-center">
                   <div>
                     <div className="font-medium text-gray-900">{client.name}</div>
                     <div className="text-sm text-gray-500">
-                      {client.invoiceCount} factura{client.invoiceCount !== 1 ? 's' : ''}
+                      {client.invoice_count} factura{client.invoice_count !== 1 ? 's' : ''}
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="font-medium text-gray-900">
-                      {formatCurrency(client.totalRevenue)}
+                      {formatCurrency(client.total_revenue)}
                     </div>
                   </div>
                 </div>

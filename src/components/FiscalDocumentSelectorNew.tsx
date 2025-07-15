@@ -62,7 +62,6 @@ const FiscalDocumentSelectorNew: React.FC<FiscalDocumentSelectorProps> = ({
       const types = await FiscalDocumentService.getDocumentTypes()
       setDocumentTypes(types)
     } catch (error) {
-      console.error('Error cargando tipos:', error)
     } finally {
       setLoading(false)
     }
@@ -89,7 +88,6 @@ const FiscalDocumentSelectorNew: React.FC<FiscalDocumentSelectorProps> = ({
         setNextNumber('')
       }
     } catch (error) {
-      console.error('Error verificando secuencia:', error)
       setActiveSequence(null)
       setNextNumber('')
     }

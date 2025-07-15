@@ -2,19 +2,13 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { Quote, QuoteItem } from '@/services/quotes'
 import { Client } from '@/services/clients'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { SettingsService, UserSettings } from '@/services/settings'
 
 export interface QuotePDFData {
   quote: Quote
   client: Client
   items: QuoteItem[]
-  company: {
-    name: string
-    address: string
-    phone: string
-    email: string
-    nit: string
-    logo?: string
-  }
+  settings: UserSettings
 }
 
 export class QuotePDFGenerator {
@@ -37,30 +31,43 @@ export class QuotePDFGenerator {
   }
 
   async generateQuotePDF(data: QuotePDFData): Promise<Uint8Array> {
-    this.doc = await PDFDocument.create()
-    this.font = await this.doc.embedFont(StandardFonts.Helvetica)
-    this.boldFont = await this.doc.embedFont(StandardFonts.HelveticaBold)
-    
-    this.currentPage = this.doc.addPage([this.pageWidth, this.pageHeight])
-    this.currentY = this.pageHeight - this.margin
+    try {
+      // Validate required data
+      if (!data.quote || !data.client || !data.items || !data.settings) {
+        throw new Error('Datos incompletos para generar el PDF')
+      }
 
-    // Generate PDF content
-    await this.drawHeader(data.company)
-    await this.drawQuoteInfo(data.quote)
-    await this.drawClientInfo(data.client)
-    await this.drawItemsTable(data.items)
-    await this.drawTotals(data.quote)
-    await this.drawTermsAndConditions()
-    await this.drawFooter(data.company)
+      if (data.items.length === 0) {
+        throw new Error('No hay productos en la cotización')
+      }
 
-    return this.doc.save()
+      this.doc = await PDFDocument.create()
+      this.font = await this.doc.embedFont(StandardFonts.Helvetica)
+      this.boldFont = await this.doc.embedFont(StandardFonts.HelveticaBold)
+      
+      this.currentPage = this.doc.addPage([this.pageWidth, this.pageHeight])
+      this.currentY = this.pageHeight - this.margin
+
+      // Generate PDF content
+      await this.drawHeader(data.settings)
+      await this.drawQuoteInfo(data.quote)
+      await this.drawClientInfo(data.client)
+      await this.drawItemsTable(data.items)
+      await this.drawTotals(data.quote, data.settings)
+      await this.drawTermsAndConditions()
+      await this.drawFooter(data.settings)
+
+      return this.doc.save()
+    } catch (error) {
+      throw new Error(`Error generando PDF: ${error instanceof Error ? error.message : 'Error desconocido'}`)
+    }
   }
 
-  private async drawHeader(company: any) {
-    const { name, address, phone, email, nit } = company
+  private async drawHeader(settings: UserSettings) {
+    const { company_name, company_address, company_phone, company_email, company_rnc } = settings
     
     // Company name
-    this.currentPage.drawText(name, {
+    this.currentPage.drawText(company_name || 'Mi Empresa', {
       x: this.margin,
       y: this.currentY,
       size: 24,
@@ -69,33 +76,47 @@ export class QuotePDFGenerator {
     })
     this.currentY -= 35
 
-    // Company info
-    this.currentPage.drawText(`NIT: ${nit}`, {
-      x: this.margin,
-      y: this.currentY,
-      size: 10,
-      font: this.font,
-      color: rgb(0.4, 0.4, 0.4)
-    })
-    this.currentY -= 15
+    // Company RNC/NIT
+    if (company_rnc) {
+      this.currentPage.drawText(`RNC: ${company_rnc}`, {
+        x: this.margin,
+        y: this.currentY,
+        size: 10,
+        font: this.font,
+        color: rgb(0.4, 0.4, 0.4)
+      })
+      this.currentY -= 15
+    }
 
-    this.currentPage.drawText(address, {
-      x: this.margin,
-      y: this.currentY,
-      size: 10,
-      font: this.font,
-      color: rgb(0.4, 0.4, 0.4)
-    })
-    this.currentY -= 15
+    // Company address
+    if (company_address) {
+      this.currentPage.drawText(company_address, {
+        x: this.margin,
+        y: this.currentY,
+        size: 10,
+        font: this.font,
+        color: rgb(0.4, 0.4, 0.4)
+      })
+      this.currentY -= 15
+    }
 
-    this.currentPage.drawText(`Tel: ${phone} | Email: ${email}`, {
-      x: this.margin,
-      y: this.currentY,
-      size: 10,
-      font: this.font,
-      color: rgb(0.4, 0.4, 0.4)
-    })
-    this.currentY -= 40
+    // Company contact info
+    const contactInfo = []
+    if (company_phone) contactInfo.push(`Tel: ${company_phone}`)
+    if (company_email) contactInfo.push(`Email: ${company_email}`)
+    
+    if (contactInfo.length > 0) {
+      this.currentPage.drawText(contactInfo.join(' | '), {
+        x: this.margin,
+        y: this.currentY,
+        size: 10,
+        font: this.font,
+        color: rgb(0.4, 0.4, 0.4)
+      })
+      this.currentY -= 15
+    }
+
+    this.currentY -= 25
 
     // Title
     this.currentPage.drawText('COTIZACIÓN', {
@@ -253,11 +274,11 @@ export class QuotePDFGenerator {
       borderWidth: 1
     })
 
-    // Column widths
-    const col1Width = tableWidth * 0.45 // Description
-    const col2Width = tableWidth * 0.15 // Quantity
-    const col3Width = tableWidth * 0.2  // Price
-    const col4Width = tableWidth * 0.2  // Total
+    // Column widths - optimized for better space usage
+    const col1Width = tableWidth * 0.50 // Description
+    const col2Width = tableWidth * 0.12 // Quantity
+    const col3Width = tableWidth * 0.19 // Price
+    const col4Width = tableWidth * 0.19 // Total
 
     // Headers
     this.currentPage.drawText('DESCRIPCIÓN', {
@@ -309,8 +330,13 @@ export class QuotePDFGenerator {
         })
       }
 
-      // Item description
-      this.currentPage.drawText(item.product_name, {
+      // Item description - truncate if too long
+      const maxDescLength = 40
+      const description = item.product_name.length > maxDescLength 
+        ? item.product_name.substring(0, maxDescLength) + '...' 
+        : item.product_name
+      
+      this.currentPage.drawText(description, {
         x: this.margin + 10,
         y: itemY + 8,
         size: 10,
@@ -368,8 +394,9 @@ export class QuotePDFGenerator {
     this.currentY = finalY - 30
   }
 
-  private async drawTotals(quote: Quote) {
+  private async drawTotals(quote: Quote, settings: UserSettings) {
     const rightX = this.pageWidth - 200
+    const taxRate = settings.tax_rate || 19
 
     // Subtotal
     this.currentPage.drawText('Subtotal:', {
@@ -389,8 +416,8 @@ export class QuotePDFGenerator {
     })
     this.currentY -= 20
 
-    // Tax
-    this.currentPage.drawText('IVA (19%):', {
+    // Tax with dynamic rate
+    this.currentPage.drawText(`ITBIS (${taxRate}%):`, {
       x: rightX,
       y: this.currentY,
       size: 10,
@@ -467,7 +494,7 @@ export class QuotePDFGenerator {
     this.currentY -= 20
   }
 
-  private async drawFooter(company: any) {
+  private async drawFooter(settings: UserSettings) {
     if (this.currentY < 150) {
       this.currentY = 150
     }
@@ -509,7 +536,7 @@ export class QuotePDFGenerator {
     })
 
     // Footer text
-    this.currentPage.drawText(`Generado por FacturaSaaS - ${new Date().toLocaleDateString('es-CO')}`, {
+    this.currentPage.drawText(`Generado por ${settings.company_name || 'FacturaSaaS'} - ${new Date().toLocaleDateString('es-DO')}`, {
       x: this.margin,
       y: 30,
       size: 8,
@@ -551,19 +578,27 @@ export class QuotePDFGenerator {
 
 // Helper function to generate quote PDF
 export async function generateQuotePDF(quoteData: QuotePDFData): Promise<Uint8Array> {
-  const generator = new QuotePDFGenerator()
-  return generator.generateQuotePDF(quoteData)
+  try {
+    const generator = new QuotePDFGenerator()
+    return await generator.generateQuotePDF(quoteData)
+  } catch (error) {
+    throw new Error(`Error al generar PDF de cotización: ${error instanceof Error ? error.message : 'Error desconocido'}`)
+  }
 }
 
 // Helper function to download PDF
 export function downloadPDF(pdfBytes: Uint8Array, filename: string) {
-  const blob = new Blob([pdfBytes], { type: 'application/pdf' })
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  window.URL.revokeObjectURL(url)
+  try {
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    throw new Error(`Error al descargar PDF: ${error instanceof Error ? error.message : 'Error desconocido'}`)
+  }
 }
