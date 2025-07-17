@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || 'dummy-key');
 
 export interface InvitationEmailData {
   invitedEmail: string;
@@ -26,6 +26,12 @@ export class EmailService {
 
   static async sendInvitationEmail(data: InvitationEmailData): Promise<{ success: boolean; error?: string }> {
     try {
+      // Check if Resend API key is configured
+      if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 'dummy-key') {
+        console.warn('RESEND_API_KEY not configured, skipping email send');
+        return { success: true }; // Return success to not break the flow
+      }
+
       const invitationUrl = this.getInvitationUrl(data.invitationToken);
       
       const expirationDate = new Date(data.expiresAt).toLocaleDateString('es-ES', {
