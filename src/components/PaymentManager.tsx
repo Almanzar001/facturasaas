@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Payment, PaymentService, UpdatePaymentData } from '@/services/paymentsDebug'
+import { Payment, PaymentService, UpdatePaymentData } from '@/services/payments'
 import { PaymentAccount, PaymentAccountService } from '@/services/paymentAccounts'
 import { formatCurrency } from '@/utils/formatCurrency'
 import Button from './Button'
@@ -52,7 +52,6 @@ const PaymentManager: React.FC<PaymentManagerProps> = ({
   useEffect(() => {
     loadPayments()
     loadPaymentAccounts()
-    PaymentService.debugTableStructure() // Debug de la estructura
   }, [invoiceId])
 
   const loadPayments = async () => {

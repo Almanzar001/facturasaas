@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { organizationService, OrganizationMember } from '@/services/organizations';
+import { InvitationService } from '@/services/invitations';
 import { usePermissions } from '@/hooks/usePermissions';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
@@ -111,7 +112,7 @@ export default function OrganizationPage() {
 
     try {
       setIsInviting(true);
-      await organizationService.inviteUser(currentOrganization.id, inviteForm.email, inviteForm.role);
+      await InvitationService.createInvitation(currentOrganization.id, inviteForm.email, inviteForm.role);
       setShowInviteForm(false);
       setInviteForm({ email: '', role: 'member' });
       alert('Invitación enviada correctamente');
