@@ -300,6 +300,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
           quote: {
             id: 'preview',
             user_id: '',
+            organization_id: '',
             client_id: formData.client_id,
             quote_number: formData.quote_number,
             date: formData.date,
@@ -338,6 +339,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ quote, onSave, onCancel }) => {
         quote: {
           id: 'preview',
           user_id: '',
+          organization_id: '',
           client_id: formData.client_id,
           quote_number: formData.quote_number,
           date: formData.date,

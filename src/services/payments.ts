@@ -1,7 +1,9 @@
 import { supabase } from './supabaseClient'
+import { organizationService } from './organizations'
 
 export interface Payment {
   id: string
+  organization_id: string
   invoice_id: string
   amount: number
   payment_date: string
@@ -39,6 +41,12 @@ export interface UpdatePaymentData {
 
 export class PaymentService {
   static async getByInvoice(invoiceId: string): Promise<Payment[]> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('payments')
       .select(`
@@ -46,6 +54,7 @@ export class PaymentService {
         payment_account:payment_accounts(id, name, type)
       `)
       .eq('invoice_id', invoiceId)
+      .eq('organization_id', organizationId)
       .order('payment_date', { ascending: false })
 
     if (error) {
@@ -56,10 +65,17 @@ export class PaymentService {
   }
 
   static async create(paymentData: CreatePaymentData): Promise<Payment> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('payments')
       .insert([{
         ...paymentData,
+        organization_id: organizationId,
         payment_date: paymentData.payment_date || new Date().toISOString().split('T')[0],
         payment_method: paymentData.payment_method || 'efectivo'
       }])
@@ -74,10 +90,17 @@ export class PaymentService {
   }
 
   static async update(id: string, paymentData: UpdatePaymentData): Promise<Payment> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('payments')
       .update(paymentData)
       .eq('id', id)
+      .eq('organization_id', organizationId)
       .select('*')
       .single()
 
@@ -89,10 +112,17 @@ export class PaymentService {
   }
 
   static async delete(id: string): Promise<void> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { error } = await supabase
       .from('payments')
       .delete()
       .eq('id', id)
+      .eq('organization_id', organizationId)
 
     if (error) {
       throw new Error(`Error deleting payment: ${error.message}`)
@@ -100,10 +130,17 @@ export class PaymentService {
   }
 
   static async getTotalPaidForInvoice(invoiceId: string): Promise<number> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('payments')
       .select('amount')
       .eq('invoice_id', invoiceId)
+      .eq('organization_id', organizationId)
 
     if (error) {
       throw new Error(`Error calculating total paid: ${error.message}`)

@@ -1,8 +1,10 @@
 import { supabase } from './supabaseClient'
+import { organizationService } from './organizations'
 
 export interface CustomFiscalSequence {
   id: string
   user_id: string
+  organization_id: string
   fiscal_document_type_id: string
   document_type?: {
     id: string
@@ -51,12 +53,19 @@ export class FiscalSequenceManagementService {
   // Get all custom fiscal sequences for the user
   static async getAllSequences(): Promise<CustomFiscalSequence[]> {
     try {
+      // Get current organization ID
+      const organizationId = await organizationService.getCurrentOrganizationId()
+      if (!organizationId) {
+        throw new Error('No organization selected')
+      }
+
       const { data, error } = await supabase
         .from('fiscal_sequences')
         .select(`
           *,
           document_type:fiscal_document_types(id, code, name, description)
         `)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -66,6 +75,7 @@ export class FiscalSequenceManagementService {
       return data?.map(seq => ({
         id: seq.id,
         user_id: seq.user_id,
+        organization_id: seq.organization_id,
         fiscal_document_type_id: seq.fiscal_document_type_id,
         document_type: seq.document_type,
         prefix: seq.prefix || '',
@@ -86,6 +96,12 @@ export class FiscalSequenceManagementService {
   // Get sequence by document type
   static async getSequenceByDocumentType(documentTypeId: string): Promise<CustomFiscalSequence | null> {
     try {
+      // Get current organization ID
+      const organizationId = await organizationService.getCurrentOrganizationId()
+      if (!organizationId) {
+        throw new Error('No organization selected')
+      }
+
       const { data, error } = await supabase
         .from('fiscal_sequences')
         .select(`
@@ -93,6 +109,7 @@ export class FiscalSequenceManagementService {
           document_type:fiscal_document_types(id, code, name, description)
         `)
         .eq('fiscal_document_type_id', documentTypeId)
+        .eq('organization_id', organizationId)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -110,6 +127,7 @@ export class FiscalSequenceManagementService {
       return {
         id: sequence.id,
         user_id: sequence.user_id,
+        organization_id: sequence.organization_id,
         fiscal_document_type_id: sequence.fiscal_document_type_id,
         document_type: sequence.document_type,
         prefix: sequence.prefix || '',
@@ -130,6 +148,12 @@ export class FiscalSequenceManagementService {
   // Create a new custom fiscal sequence
   static async createCustomSequence(data: CreateCustomSequenceData): Promise<CustomFiscalSequence> {
     try {
+      // Get current organization ID
+      const organizationId = await organizationService.getCurrentOrganizationId()
+      if (!organizationId) {
+        throw new Error('No organization selected')
+      }
+
       // Check if sequence already exists for this document type
       const existing = await this.getSequenceByDocumentType(data.fiscal_document_type_id)
       if (existing) {
@@ -139,6 +163,7 @@ export class FiscalSequenceManagementService {
       const startNumber = data.start_number || 1
       const sequenceData = {
         fiscal_document_type_id: data.fiscal_document_type_id,
+        organization_id: organizationId,
         prefix: data.prefix || '',
         suffix: data.suffix || '',
         current_number: startNumber - 1, // El próximo número será start_number
@@ -164,6 +189,7 @@ export class FiscalSequenceManagementService {
       return {
         id: result.id,
         user_id: result.user_id,
+        organization_id: result.organization_id,
         fiscal_document_type_id: result.fiscal_document_type_id,
         document_type: result.document_type,
         prefix: result.prefix || '',
@@ -184,10 +210,17 @@ export class FiscalSequenceManagementService {
   // Update an existing custom fiscal sequence
   static async updateCustomSequence(id: string, data: UpdateCustomSequenceData): Promise<CustomFiscalSequence> {
     try {
+      // Get current organization ID
+      const organizationId = await organizationService.getCurrentOrganizationId()
+      if (!organizationId) {
+        throw new Error('No organization selected')
+      }
+
       const { data: result, error } = await supabase
         .from('fiscal_sequences')
         .update(data)
         .eq('id', id)
+        .eq('organization_id', organizationId)
         .select(`
           *,
           document_type:fiscal_document_types(id, code, name, description)
@@ -201,6 +234,7 @@ export class FiscalSequenceManagementService {
       return {
         id: result.id,
         user_id: result.user_id,
+        organization_id: result.organization_id,
         fiscal_document_type_id: result.fiscal_document_type_id,
         document_type: result.document_type,
         prefix: result.prefix || '',
@@ -221,10 +255,17 @@ export class FiscalSequenceManagementService {
   // Delete a fiscal sequence
   static async deleteSequence(id: string): Promise<void> {
     try {
+      // Get current organization ID
+      const organizationId = await organizationService.getCurrentOrganizationId()
+      if (!organizationId) {
+        throw new Error('No organization selected')
+      }
+
       const { error } = await supabase
         .from('fiscal_sequences')
         .delete()
         .eq('id', id)
+        .eq('organization_id', organizationId)
 
       if (error) {
         throw new Error(`Error deleting sequence: ${error.message}`)
@@ -237,11 +278,18 @@ export class FiscalSequenceManagementService {
   // Reset sequence to start number
   static async resetSequence(id: string): Promise<CustomFiscalSequence> {
     try {
+      // Get current organization ID
+      const organizationId = await organizationService.getCurrentOrganizationId()
+      if (!organizationId) {
+        throw new Error('No organization selected')
+      }
+
       // Get current sequence to get start_number
       const { data: sequence, error: getError } = await supabase
         .from('fiscal_sequences')
         .select('start_number')
         .eq('id', id)
+        .eq('organization_id', organizationId)
         .single()
 
       if (getError) {

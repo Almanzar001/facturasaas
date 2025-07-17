@@ -152,7 +152,7 @@ function ConfigurationPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-900">Usuarios</p>
-              <p className="text-xs text-gray-500">Gestionar accesos</p>
+              <p className="text-xs text-gray-500">Gestionar accesos e invitaciones</p>
             </div>
           </div>
         </a>
@@ -190,6 +190,29 @@ function ConfigurationPage() {
             </div>
           </div>
         </a>
+      </div>
+
+      {/* Sección de Administración */}
+      <div className="border-t pt-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Administración</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <a
+            href="/configuracion/limpieza"
+            className="block p-4 bg-red-50 border border-red-200 rounded-lg hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center space-x-3">
+              <div className="flex-shrink-0">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-red-900">Limpieza de Organización</p>
+                <p className="text-xs text-red-600">Eliminar todos los datos de la organización</p>
+              </div>
+            </div>
+          </a>
+        </div>
       </div>
 
       {/* Información de la Empresa */}

@@ -1,8 +1,10 @@
 import { supabase } from './supabaseClient'
+import { organizationService } from './organizations'
 
 export interface PaymentAccount {
   id: string
   user_id: string
+  organization_id: string
   name: string
   type: 'caja_chica' | 'banco' | 'tarjeta' | 'digital'
   bank_name?: string
@@ -36,9 +38,16 @@ export interface UpdatePaymentAccountData extends Partial<CreatePaymentAccountDa
 
 export class PaymentAccountService {
   static async getAll(includeInactive: boolean = false): Promise<PaymentAccount[]> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     let query = supabase
       .from('payment_accounts')
       .select('*')
+      .eq('organization_id', organizationId)
       .order('name', { ascending: true })
 
     if (!includeInactive) {
@@ -55,10 +64,17 @@ export class PaymentAccountService {
   }
 
   static async getById(id: string): Promise<PaymentAccount | null> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('payment_accounts')
       .select('*')
       .eq('id', id)
+      .eq('organization_id', organizationId)
       .single()
 
     if (error) {
@@ -72,10 +88,17 @@ export class PaymentAccountService {
   }
 
   static async create(accountData: CreatePaymentAccountData): Promise<PaymentAccount> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('payment_accounts')
       .insert([{
         ...accountData,
+        organization_id: organizationId,
         currency: accountData.currency || 'DOP',
         initial_balance: accountData.initial_balance || 0,
         current_balance: accountData.initial_balance || 0
@@ -91,10 +114,17 @@ export class PaymentAccountService {
   }
 
   static async update(id: string, accountData: UpdatePaymentAccountData): Promise<PaymentAccount> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('payment_accounts')
       .update(accountData)
       .eq('id', id)
+      .eq('organization_id', organizationId)
       .select('*')
       .single()
 
@@ -106,10 +136,17 @@ export class PaymentAccountService {
   }
 
   static async delete(id: string): Promise<void> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { error } = await supabase
       .from('payment_accounts')
       .delete()
       .eq('id', id)
+      .eq('organization_id', organizationId)
 
     if (error) {
       throw new Error(`Error deleting payment account: ${error.message}`)
@@ -117,10 +154,24 @@ export class PaymentAccountService {
   }
 
   static async setDefault(id: string): Promise<void> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
+    // First, remove default from all accounts in this organization
+    await supabase
+      .from('payment_accounts')
+      .update({ is_default: false })
+      .eq('organization_id', organizationId)
+
+    // Then set the new default
     const { error } = await supabase
       .from('payment_accounts')
       .update({ is_default: true })
       .eq('id', id)
+      .eq('organization_id', organizationId)
 
     if (error) {
       throw new Error(`Error setting default account: ${error.message}`)
@@ -128,10 +179,17 @@ export class PaymentAccountService {
   }
 
   static async getDefault(): Promise<PaymentAccount | null> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('payment_accounts')
       .select('*')
       .eq('is_default', true)
+      .eq('organization_id', organizationId)
       .single()
 
     if (error) {
@@ -150,9 +208,16 @@ export class PaymentAccountService {
     total_expense: number
     transaction_count: number
   }>> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('payment_accounts_summary')
       .select('*')
+      .eq('organization_id', organizationId)
 
     if (error) {
       throw new Error(`Error fetching account summary: ${error.message}`)

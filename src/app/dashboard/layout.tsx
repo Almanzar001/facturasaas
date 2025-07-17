@@ -6,6 +6,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
+import { useEffect } from 'react'
+import { useOrganization } from '@/contexts/OrganizationContext'
+import OrganizationSelector from '@/components/OrganizationSelector'
+import NoOrganizationSelected from '@/components/NoOrganizationSelected'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -16,7 +20,22 @@ export default function DashboardLayout({
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
   const { user, logout, canAccess, loading } = useAuth()
+  const { currentOrganization, isLoading: orgLoading } = useOrganization()
+
+  // Redirect to onboarding if no organization is selected
+  useEffect(() => {
+    if (!loading && !orgLoading && user && !currentOrganization) {
+      // Solo redirigir a onboarding si el usuario es super_admin o admin
+      // Los empleados (viewers) no deben crear organizaciones
+      if (user.role_name === 'super_admin' || user.role_name === 'admin') {
+        router.push('/onboarding')
+      } else {
+        // Para empleados sin organización, mostrar mensaje informativo
+      }
+    }
+  }, [loading, orgLoading, user, currentOrganization, router])
 
   // Menu items with their required permissions
   const allMenuItems = [
@@ -28,7 +47,7 @@ export default function DashboardLayout({
     { href: '/gastos', label: 'Gastos', resource: 'expenses' },
     { href: '/reportes', label: 'Reportes', resource: 'reports' },
     { href: '/configuracion', label: 'Configuración', resource: 'settings' },
-    { href: '/usuarios', label: 'Usuarios', resource: 'users' },
+    { href: '/configuracion/usuarios', label: 'Usuarios', resource: 'users' },
   ]
 
   // Filter menu items based on user permissions
@@ -44,7 +63,7 @@ export default function DashboardLayout({
   const isActive = (href: string) => pathname === href
 
   // Show loading state while checking authentication
-  if (loading) {
+  if (loading || orgLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -58,6 +77,92 @@ export default function DashboardLayout({
   // Prevent unauthorized access
   if (!user) {
     return null
+  }
+
+  // Show no organization selected state
+  if (!currentOrganization) {
+    // Para empleados (viewers), mostrar mensaje especial
+    if (user.role_name === 'viewer') {
+      return (
+        <div className={`min-h-screen bg-background ${inter.className}`}>
+          <nav className="bg-white shadow-sm border-b">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between h-16">
+                <div className="flex items-center">
+                  <h1 className="text-xl font-bold text-primary">FacturaSaaS</h1>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-gray-900">
+                      {user.full_name || user.email}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {user.role_name}
+                    </div>
+                  </div>
+                  <button 
+                    onClick={handleLogout}
+                    className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    Cerrar Sesión
+                  </button>
+                </div>
+              </div>
+            </div>
+          </nav>
+          <main className="flex-1 flex items-center justify-center">
+            <div className="text-center p-8">
+              <div className="mx-auto h-24 w-24 text-gray-400 mb-4">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                Sin Organización Asignada
+              </h2>
+              <p className="text-gray-600 mb-4">
+                Tu cuenta aún no ha sido asignada a una organización.
+              </p>
+              <p className="text-sm text-gray-500">
+                Contacta a tu administrador para que te asigne a una organización.
+              </p>
+            </div>
+          </main>
+        </div>
+      )
+    }
+
+    // Para admins, mostrar selector normal
+    return (
+      <div className={`min-h-screen bg-background ${inter.className}`}>
+        <nav className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between h-16">
+              <div className="flex items-center">
+                <h1 className="text-xl font-bold text-primary">FacturaSaaS</h1>
+              </div>
+              <div className="flex items-center space-x-4">
+                <OrganizationSelector />
+                <div className="text-right">
+                  <div className="text-sm font-medium text-gray-900">
+                    {user.full_name || user.email}
+                  </div>
+                </div>
+                <button 
+                  onClick={handleLogout}
+                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Cerrar Sesión
+                </button>
+              </div>
+            </div>
+          </div>
+        </nav>
+        <main className="flex-1">
+          <NoOrganizationSelected />
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -96,6 +201,7 @@ export default function DashboardLayout({
               <h1 className="ml-2 lg:ml-0 text-xl font-bold text-primary">FacturaSaaS</h1>
             </div>
             <div className="flex items-center space-x-4">
+              <OrganizationSelector />
               <div className="text-right">
                 <div className="text-sm font-medium text-gray-900">
                   {user.full_name || user.email}

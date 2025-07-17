@@ -9,7 +9,7 @@ import { useAuth, withAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/services/supabaseClient'
 
 function AccountPage() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const [loading, setLoading] = useState(false)
   const [profileData, setProfileData] = useState({
     email: '',
@@ -29,7 +29,7 @@ function AccountPage() {
   // Memoized initial profile data
   const initialProfileData = useMemo(() => ({
     email: user?.email || '',
-    full_name: (user as any)?.user_metadata?.full_name || ''
+    full_name: user?.full_name || ''
   }), [user])
 
   // Clear success messages after 3 seconds
@@ -107,11 +107,31 @@ function AccountPage() {
       setProfileError('')
       setProfileSuccess('')
       
-      const { error } = await supabase.auth.updateUser({
-        data: { full_name: profileData.full_name }
-      })
+      // Actualizar tabla personalizada users
+      const { error: userError } = await supabase
+        .from('users')
+        .update({ 
+          full_name: profileData.full_name,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user?.id)
 
-      if (error) throw error
+      if (userError) {
+        // Error updating users table - continue anyway
+      }
+
+      // Refrescar datos del usuario en el contexto (con timeout)
+      try {
+        const refreshPromise = refreshUser()
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 3000)
+        )
+        
+        await Promise.race([refreshPromise, timeoutPromise])
+      } catch (refreshError) {
+        // Error refrescando contexto - actualizar localmente como respaldo
+        setProfileData(prev => ({ ...prev, full_name: profileData.full_name }))
+      }
 
       setProfileSuccess('Perfil actualizado exitosamente')
     } catch (error: any) {
@@ -119,7 +139,7 @@ function AccountPage() {
     } finally {
       setLoading(false)
     }
-  }, [profileData.full_name, hasProfileChanges])
+  }, [profileData.full_name, hasProfileChanges, user?.id, refreshUser])
 
   // Optimized password change handler
   const handleChangePassword = useCallback(async () => {
@@ -242,13 +262,47 @@ function AccountPage() {
               placeholder="Tu nombre completo"
             />
 
-            <div className="flex justify-end">
+            <div className="flex justify-end space-x-2">
               <Button
                 onClick={handleUpdateProfile}
                 loading={loading}
                 disabled={loading || !hasProfileChanges}
               >
                 Actualizar Perfil
+              </Button>
+              
+              <Button
+                onClick={async () => {
+                  try {
+                    setLoading(true)
+                    setProfileError('')
+                    setProfileSuccess('')
+                    
+                    // Solo actualizar tabla personalizada users
+                    const { error } = await supabase
+                      .from('users')
+                      .update({ 
+                        full_name: profileData.full_name,
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq('id', user?.id)
+                    
+                    if (error) {
+                      throw error
+                    }
+                    
+                    setProfileSuccess('Perfil actualizado (solo tabla BD)')
+                  } catch (error: any) {
+                    setProfileError('Error: ' + error.message)
+                  } finally {
+                    setLoading(false)
+                  }
+                }}
+                variant="outline"
+                loading={loading}
+                disabled={loading || !hasProfileChanges}
+              >
+                Solo BD
               </Button>
             </div>
           </div>

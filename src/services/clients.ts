@@ -1,8 +1,10 @@
 import { supabase } from './supabaseClient'
+import { organizationService } from './organizations'
 
 export interface Client {
   id: string
   user_id: string
+  organization_id: string
   name: string
   email?: string
   phone?: string
@@ -29,16 +31,33 @@ export interface UpdateClientData extends Partial<CreateClientData> {
 }
 
 export class ClientService {
-  static async getAll(): Promise<Client[]> {
-    // Get current user for authentication
+  // Utility function to create the proper filter for organization/user
+  private static async createOrganizationFilter() {
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) {
       throw new Error('No authenticated user')
     }
 
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      // If no organization, just filter by user_id
+      return { filter: `user_id.eq.${userData.user.id}`, userId: userData.user.id, organizationId: null }
+    }
+
+    // Filter by organization_id or (organization_id is null AND user_id matches)
+    return { 
+      filter: `organization_id.eq.${organizationId},and(organization_id.is.null,user_id.eq.${userData.user.id})`,
+      userId: userData.user.id,
+      organizationId
+    }
+  }
+  static async getAll(): Promise<Client[]> {
+    const { filter } = await this.createOrganizationFilter()
+    
     const { data, error } = await supabase
       .from('clients')
       .select('*')
+      .or(filter)
       .order('name', { ascending: true })
 
     if (error) {
@@ -49,10 +68,13 @@ export class ClientService {
   }
 
   static async getById(id: string): Promise<Client | null> {
+    const { filter } = await this.createOrganizationFilter()
+    
     const { data, error } = await supabase
       .from('clients')
       .select('*')
       .eq('id', id)
+      .or(filter)
       .single()
 
     if (error) {
@@ -72,9 +94,19 @@ export class ClientService {
       throw new Error('No authenticated user')
     }
 
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('clients')
-      .insert([clientData])
+      .insert([{
+        ...clientData,
+        user_id: userData.user.id,
+        organization_id: organizationId
+      }])
       .select('*')
       .single()
 
@@ -86,10 +118,13 @@ export class ClientService {
   }
 
   static async update(id: string, clientData: Partial<CreateClientData>): Promise<Client> {
+    const { filter } = await this.createOrganizationFilter()
+    
     const { data, error } = await supabase
       .from('clients')
       .update(clientData)
       .eq('id', id)
+      .or(filter)
       .select('*')
       .single()
 
@@ -101,10 +136,13 @@ export class ClientService {
   }
 
   static async delete(id: string): Promise<void> {
+    const { filter } = await this.createOrganizationFilter()
+    
     const { error } = await supabase
       .from('clients')
       .delete()
       .eq('id', id)
+      .or(filter)
 
     if (error) {
       throw new Error(`Error deleting client: ${error.message}`)
@@ -112,9 +150,12 @@ export class ClientService {
   }
 
   static async search(query: string): Promise<Client[]> {
+    const { filter } = await this.createOrganizationFilter()
+    
     const { data, error } = await supabase
       .from('clients')
       .select('*')
+      .or(filter)
       .or(`name.ilike.%${query}%,email.ilike.%${query}%,identification.ilike.%${query}%`)
       .order('name', { ascending: true })
 
@@ -131,9 +172,12 @@ export class ClientService {
     withPhone: number
     recent: number
   }> {
+    const { filter } = await this.createOrganizationFilter()
+    
     const { data, error } = await supabase
       .from('clients')
       .select('id, email, phone, created_at')
+      .or(filter)
 
     if (error) {
       throw new Error(`Error fetching client stats: ${error.message}`)

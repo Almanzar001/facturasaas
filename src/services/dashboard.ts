@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { organizationService } from './organizations'
 
 export interface DashboardMetrics {
   totalRevenue: number
@@ -49,6 +50,12 @@ export class DashboardService {
       throw new Error('No authenticated user')
     }
 
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     try {
 
       // Calcular métricas básicas en paralelo
@@ -56,17 +63,20 @@ export class DashboardService {
         // Total de ingresos de facturas (incluyendo pagos parciales)
         supabase
           .from('invoices')
-          .select('total, status, date, total_paid'),
+          .select('total, status, date, total_paid')
+          .eq('organization_id', organizationId),
         
         // Total de gastos
         supabase
           .from('expenses')
-          .select('amount, date'),
+          .select('amount, date')
+          .eq('organization_id', organizationId),
         
         // Total de clientes
         supabase
           .from('clients')
           .select('id')
+          .eq('organization_id', organizationId)
       ])
 
 
@@ -161,6 +171,12 @@ export class DashboardService {
 
   private static async getTopClients(): Promise<TopClient[]> {
     try {
+      // Get current organization ID
+      const organizationId = await organizationService.getCurrentOrganizationId()
+      if (!organizationId) {
+        throw new Error('No organization selected')
+      }
+
       const { data, error } = await supabase
         .from('invoices')
         .select(`
@@ -168,6 +184,7 @@ export class DashboardService {
           total,
           clients!inner(name, email)
         `)
+        .eq('organization_id', organizationId)
         .eq('status', 'paid')
 
       if (error) throw error
@@ -211,14 +228,23 @@ export class DashboardService {
 
   private static async getTopProducts(): Promise<TopProduct[]> {
     try {
+      // Get current organization ID
+      const organizationId = await organizationService.getCurrentOrganizationId()
+      if (!organizationId) {
+        throw new Error('No organization selected')
+      }
+
       const { data, error } = await supabase
         .from('invoice_items')
         .select(`
+          product_id,
           product_name,
           quantity,
+          price,
           total,
-          invoices!inner(status)
+          invoices!inner(status, organization_id)
         `)
+        .eq('invoices.organization_id', organizationId)
         .eq('invoices.status', 'paid')
 
       if (error) throw error

@@ -1,58 +1,20 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { supabase } from '@/services/supabaseClient'
+import { UsersService, User, Role } from '@/services/users'
 import Button from '@/components/Button'
-import Table from '@/components/Table'
-import Modal from '@/components/Modal'
-import SearchInput from '@/components/SearchInput'
 import Card from '@/components/Card'
-import StatusBadge from '@/components/StatusBadge'
 import Input from '@/components/Input'
 import Select from '@/components/Select'
-import { FormGroup, FormActions } from '@/components/FormField'
+import Modal from '@/components/Modal'
 import { useAuth, withAuth } from '@/contexts/AuthContext'
-
-interface User {
-  id: string
-  email: string
-  full_name?: string
-  company_name?: string
-  role_id?: string
-  role?: {
-    id: string
-    name: string
-    description: string
-  }
-  is_active: boolean
-  last_login?: string
-  created_at: string
-  updated_at: string
-}
-
-interface Role {
-  id: string
-  name: string
-  description: string
-}
 
 function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [roles, setRoles] = useState<Role[]>([])
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [showModal, setShowModal] = useState(false)
-  const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [showInviteModal, setShowInviteModal] = useState(false)
-  const [inviteData, setInviteData] = useState({
-    email: '',
-    full_name: '',
-    role_id: ''
-  })
-  const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({})
-  const [inviting, setInviting] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [creating, setCreating] = useState(false)
   const [createData, setCreateData] = useState({
     email: '',
     password: '',
@@ -60,178 +22,26 @@ function UsersPage() {
     role_id: ''
   })
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({})
-  const [creating, setCreating] = useState(false)
-  const [showMethodModal, setShowMethodModal] = useState(false)
-  const { user: currentUser, hasPermission } = useAuth()
+  const { user: currentUser } = useAuth()
 
   useEffect(() => {
-    loadUsers()
-    loadRoles()
+    loadData()
   }, [])
 
-  useEffect(() => {
-    filterUsers()
-  }, [searchQuery, users])
-
-  const loadUsers = async () => {
+  const loadData = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase
-        .from('users')
-        .select(`
-          *,
-          role:roles(id, name, description)
-        `)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setUsers(data || [])
+      const [usersData, rolesData] = await Promise.all([
+        UsersService.getUsers(),
+        UsersService.getRoles()
+      ])
+      setUsers(usersData)
+      setRoles(rolesData)
     } catch (error) {
+      // Error loading data
     } finally {
       setLoading(false)
     }
-  }
-
-  const loadRoles = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('roles')
-        .select('*')
-        .order('name')
-
-      if (error) throw error
-      setRoles(data || [])
-    } catch (error) {
-    }
-  }
-
-  const filterUsers = () => {
-    let filtered = users
-
-    if (searchQuery) {
-      filtered = filtered.filter(user => 
-        user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        false
-      )
-    }
-
-    setFilteredUsers(filtered)
-  }
-
-  const handleToggleUserStatus = async (user: User) => {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({ is_active: !user.is_active })
-        .eq('id', user.id)
-
-      if (error) throw error
-
-      await loadUsers()
-      alert(`Usuario ${!user.is_active ? 'activado' : 'desactivado'} exitosamente`)
-    } catch (error) {
-      alert('Error al actualizar el estado del usuario')
-    }
-  }
-
-  const handleUpdateUserRole = async (userId: string, roleId: string) => {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({ role_id: roleId })
-        .eq('id', userId)
-
-      if (error) throw error
-
-      await loadUsers()
-      alert('Rol actualizado exitosamente')
-    } catch (error) {
-      alert('Error al actualizar el rol')
-    }
-  }
-
-  const validateInviteForm = () => {
-    const errors: Record<string, string> = {}
-
-    if (!inviteData.email) {
-      errors.email = 'El correo es requerido'
-    } else if (!/\S+@\S+\.\S+/.test(inviteData.email)) {
-      errors.email = 'Correo inválido'
-    }
-
-    if (!inviteData.full_name) {
-      errors.full_name = 'El nombre es requerido'
-    }
-
-    if (!inviteData.role_id) {
-      errors.role_id = 'Selecciona un rol'
-    }
-
-    setInviteErrors(errors)
-    return Object.keys(errors).length === 0
-  }
-
-  const handleInviteUser = async () => {
-    if (!validateInviteForm()) return
-
-    try {
-      setInviting(true)
-
-      // Intentar enviar invitación
-      const { error } = await supabase.auth.admin.inviteUserByEmail(inviteData.email, {
-        data: {
-          full_name: inviteData.full_name,
-          role_id: inviteData.role_id
-        }
-      })
-
-      if (error) {
-        // Si el email no está configurado, guardar la invitación pendiente
-        const { error: pendingError } = await supabase
-          .from('pending_invitations')
-          .insert({
-            email: inviteData.email,
-            full_name: inviteData.full_name,
-            role_id: inviteData.role_id,
-            invited_by: currentUser?.id,
-            status: 'pending'
-          })
-
-        if (pendingError) {
-          }
-
-        alert(`La invitación se ha guardado pero el email no se pudo enviar.
-
-Para completar el registro:
-1. Comparte estos datos con el usuario:
-   Email: ${inviteData.email}
-   Contraseña temporal: ${generateTempPassword()}
-   
-2. O crea el usuario desde el Dashboard de Supabase`)
-      } else {
-        alert('Invitación enviada exitosamente')
-      }
-
-      setShowInviteModal(false)
-      setInviteData({ email: '', full_name: '', role_id: '' })
-      setInviteErrors({})
-      await loadUsers()
-    } catch (error) {
-      alert('Error al enviar la invitación')
-    } finally {
-      setInviting(false)
-    }
-  }
-
-  const generateTempPassword = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%'
-    let password = ''
-    for (let i = 0; i < 12; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    return password
   }
 
   const validateCreateForm = () => {
@@ -266,444 +76,299 @@ Para completar el registro:
 
     try {
       setCreating(true)
-
-      // Intentar crear el usuario usando auth.signUp
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      
+      const result = await UsersService.createUser({
         email: createData.email,
         password: createData.password,
-        options: {
-          data: {
-            full_name: createData.full_name,
-            role_id: createData.role_id
-          }
-        }
+        full_name: createData.full_name,
+        role_id: createData.role_id
       })
 
-      if (authError) {
-        
+      if (result.success) {
+        alert('✅ Usuario creado exitosamente!')
+        setShowCreateModal(false)
+        setCreateData({ email: '', password: '', full_name: '', role_id: '' })
+        setCreateErrors({})
+        await loadData()
+      } else {
         // Mostrar instrucciones detalladas
-        const instructions = `
-Usuario no creado. Instrucciones para crear manualmente:
+        const message = `❌ Error al crear usuario automaticamente.
 
-1. Ve a Supabase Dashboard > Authentication > Users
-2. Click en "Add user" 
-3. Ingresa estos datos:
-   - Email: ${createData.email}
-   - Password: ${createData.password}
-   - Auto Confirm User: ✓ (activado)
+${result.error}
 
-4. Después de crear el usuario, actualiza su perfil:
-   - Ve a Table Editor > users
-   - Busca el usuario por email
-   - Actualiza:
-     - full_name: ${createData.full_name}
-     - role_id: ${createData.role_id}
+📋 INSTRUCCIONES MANUALES:
 
-5. Comparte las credenciales con el usuario de forma segura.`
+1. Ve a tu Supabase Dashboard
+2. Authentication > Users > Add user
+3. Completa:
+   📧 Email: ${createData.email}
+   🔐 Password: ${createData.password}
+   ✅ Auto Confirm User: ACTIVADO
 
-        alert(instructions)
-        
-        // Copiar instrucciones al portapapeles
-        try {
-          await navigator.clipboard.writeText(instructions)
-        } catch (e) {
-          // Clipboard write failed
+4. El perfil se creará automáticamente.
+
+¿Quieres abrir Supabase Dashboard?`
+
+        if (confirm(message)) {
+          window.open('https://supabase.com/dashboard', '_blank')
         }
         
-        return
-      }
-
-      // Si se creó exitosamente
-      if (authData.user) {
-        // Actualizar el perfil del usuario
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({
-            full_name: createData.full_name,
-            role_id: createData.role_id
-          })
-          .eq('id', authData.user.id)
-
-        if (updateError) {
-        }
-
-        const successMessage = `
-Usuario creado exitosamente!
-
-Credenciales del usuario:
-Email: ${createData.email}
-Contraseña: ${createData.password}
-
-Por favor, comparte estas credenciales de forma segura con el usuario.`
-
-        alert(successMessage)
-        
-        // Copiar credenciales al portapapeles
+        // Copiar al portapapeles
         try {
-          await navigator.clipboard.writeText(successMessage)
+          await navigator.clipboard.writeText(`Email: ${createData.email}\nPassword: ${createData.password}`)
+          alert('📋 Credenciales copiadas al portapapeles')
         } catch (e) {
-          // Clipboard write failed
+          // No se pudo copiar al portapapeles
         }
       }
-
-      setShowCreateModal(false)
-      setCreateData({ email: '', password: '', full_name: '', role_id: '' })
-      setCreateErrors({})
-      await loadUsers()
     } catch (error) {
-      alert('Error inesperado al crear el usuario. Intenta desde el Dashboard de Supabase.')
+      alert('Error inesperado al crear el usuario')
     } finally {
       setCreating(false)
     }
   }
 
-  const columns = [
-    {
-      key: 'email',
-      title: 'Usuario',
-      render: (value: string, row: User) => (
-        <div>
-          <div className="font-medium text-gray-900">{row.full_name || 'Sin nombre'}</div>
-          <div className="text-sm text-gray-500">{value}</div>
-          {row.company_name && (
-            <div className="text-xs text-gray-400">{row.company_name}</div>
-          )}
-        </div>
-      )
-    },
-    {
-      key: 'role',
-      title: 'Rol',
-      render: (value: any) => (
-        <div>
-          <div className="font-medium text-gray-900">{value?.name || 'Sin rol'}</div>
-          <div className="text-xs text-gray-500">{value?.description}</div>
-        </div>
-      )
-    },
-    {
-      key: 'is_active',
-      title: 'Estado',
-      render: (value: boolean) => (
-        <StatusBadge 
-          status={value ? 'active' : 'inactive'} 
-          variant="general"
-        />
-      )
-    },
-    {
-      key: 'last_login',
-      title: 'Último Acceso',
-      render: (value: string) => value ? new Date(value).toLocaleString() : 'Nunca'
-    },
-    {
-      key: 'created_at',
-      title: 'Registrado',
-      render: (value: string) => new Date(value).toLocaleDateString()
-    },
-    {
-      key: 'actions',
-      title: 'Acciones',
-      render: (value: any, row: User) => (
-        <div className="flex space-x-2">
-          {row.id !== currentUser?.id && (
-            <>
-              <select
-                value={row.role_id || ''}
-                onChange={(e) => handleUpdateUserRole(row.id, e.target.value)}
-                className="text-xs border border-gray-300 rounded px-2 py-1"
-                title="Cambiar rol"
-              >
-                <option value="">Cambiar rol...</option>
-                {roles.map(role => (
-                  <option key={role.id} value={role.id}>
-                    {role.name}
-                  </option>
-                ))}
-              </select>
-
-              <Button
-                size="sm"
-                variant={row.is_active ? 'danger' : 'secondary'}
-                onClick={() => handleToggleUserStatus(row)}
-              >
-                {row.is_active ? 'Desactivar' : 'Activar'}
-              </Button>
-            </>
-          )}
-          
-          {row.id === currentUser?.id && (
-            <span className="text-xs text-gray-500 italic">Tu cuenta</span>
-          )}
-        </div>
-      )
+  const handleToggleUserStatus = async (user: User) => {
+    try {
+      const result = await UsersService.toggleUserStatus(user.id, !user.is_active)
+      
+      if (result.success) {
+        alert(`Usuario ${!user.is_active ? 'activado' : 'desactivado'} exitosamente`)
+        await loadData()
+      } else {
+        alert('Error: ' + result.error)
+      }
+    } catch (error) {
+      alert('Error al actualizar el estado del usuario')
     }
-  ]
+  }
+
+  const handleUpdateUserRole = async (userId: string, roleId: string) => {
+    try {
+      const result = await UsersService.updateUserRole(userId, roleId)
+      
+      if (result.success) {
+        alert('Rol actualizado exitosamente')
+        await loadData()
+      } else {
+        alert('Error: ' + result.error)
+      }
+    } catch (error) {
+      alert('Error al actualizar el rol')
+    }
+  }
+
+  const handleDeleteUser = async (user: User) => {
+    if (!confirm(`¿Eliminar usuario "${user.full_name || user.email}"?`)) return
+
+    try {
+      const result = await UsersService.deleteUser(user.id)
+      
+      if (result.success) {
+        alert('Usuario eliminado exitosamente')
+        await loadData()
+      } else {
+        alert('Error: ' + result.error)
+      }
+    } catch (error) {
+      alert('Error al eliminar el usuario')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="text-center">Cargando usuarios...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Usuarios</h1>
-        <Button onClick={() => setShowMethodModal(true)}>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Gestión de Usuarios 👥</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Usuario actual: {currentUser?.full_name} ({currentUser?.role_name})
+          </p>
+        </div>
+        <Button onClick={() => setShowCreateModal(true)}>
           Agregar Usuario
         </Button>
       </div>
 
       <Card>
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Buscar usuarios..."
-              className="max-w-sm"
-            />
-            <div className="text-sm text-gray-500">
-              {filteredUsers.length} usuario{filteredUsers.length !== 1 ? 's' : ''}
-            </div>
-          </div>
+        <div className="p-6">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Usuario
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Rol
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Estado
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Registrado
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {users.map((user) => (
+                  <tr key={user.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {user.full_name || 'Sin nombre'}
+                        </div>
+                        <div className="text-sm text-gray-500">{user.email}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {user.role?.name || 'Sin rol'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        user.is_active 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {user.is_active ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(user.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      {user.id !== currentUser?.id && (
+                        <div className="flex space-x-2">
+                          <select
+                            value={user.role_id || ''}
+                            onChange={(e) => handleUpdateUserRole(user.id, e.target.value)}
+                            className="text-xs border border-gray-300 rounded px-2 py-1"
+                          >
+                            <option value="">Cambiar rol...</option>
+                            {roles.map(role => (
+                              <option key={role.id} value={role.id}>
+                                {role.name}
+                              </option>
+                            ))}
+                          </select>
 
-          <Table
-            data={filteredUsers}
-            columns={columns}
-            loading={loading}
-            emptyMessage="No hay usuarios registrados"
-          />
+                          <Button
+                            size="sm"
+                            variant={user.is_active ? 'danger' : 'secondary'}
+                            onClick={() => handleToggleUserStatus(user)}
+                          >
+                            {user.is_active ? 'Desactivar' : 'Activar'}
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() => handleDeleteUser(user)}
+                          >
+                            🗑️
+                          </Button>
+                        </div>
+                      )}
+                      {user.id === currentUser?.id && (
+                        <span className="text-xs text-gray-500 italic">Tu cuenta</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {users.length === 0 && (
+              <div className="text-center py-8">
+                <p className="text-gray-500">No hay usuarios registrados</p>
+              </div>
+            )}
+          </div>
         </div>
       </Card>
 
-      {/* Modal de selección de método */}
-      <Modal
-        isOpen={showMethodModal}
-        onClose={() => setShowMethodModal(false)}
-        title="Agregar Usuario"
-      >
-        <div className="space-y-4">
-          <p className="text-gray-600">Selecciona cómo deseas agregar el nuevo usuario:</p>
-          
-          <div className="grid grid-cols-1 gap-4">
-            <button
-              onClick={() => {
-                setShowMethodModal(false)
-                setShowInviteModal(true)
-              }}
-              className="p-4 border rounded-lg hover:bg-gray-50 text-left transition-colors"
-            >
-              <h4 className="font-medium text-gray-900">Enviar Invitación por Email</h4>
-              <p className="text-sm text-gray-600 mt-1">
-                El usuario recibirá un email para crear su contraseña (requiere configuración SMTP)
-              </p>
-            </button>
-
-            <button
-              onClick={() => {
-                setShowMethodModal(false)
-                setShowCreateModal(true)
-              }}
-              className="p-4 border rounded-lg hover:bg-gray-50 text-left transition-colors"
-            >
-              <h4 className="font-medium text-gray-900">Crear Usuario Directamente</h4>
-              <p className="text-sm text-gray-600 mt-1">
-                Crea el usuario con una contraseña temporal que deberás compartir
-              </p>
-            </button>
-          </div>
-
-          <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-sm text-amber-800">
-            <strong>Nota:</strong> Si el email no está configurado, la invitación se guardará 
-            y se generará una contraseña temporal para compartir manualmente.
-          </div>
-
-          <FormActions>
-            <Button
-              variant="outline"
-              onClick={() => setShowMethodModal(false)}
-            >
-              Cancelar
-            </Button>
-          </FormActions>
-        </div>
-      </Modal>
-
-      {/* Modal de invitación */}
-      <Modal
-        isOpen={showInviteModal}
-        onClose={() => {
-          setShowInviteModal(false)
-          setInviteData({ email: '', full_name: '', role_id: '' })
-          setInviteErrors({})
-        }}
-        title="Invitar Usuario"
-      >
-        <form onSubmit={(e) => { e.preventDefault(); handleInviteUser(); }} className="space-y-4">
-          <Input
-            label="Nombre Completo"
-            value={inviteData.full_name}
-            onChange={(e) => setInviteData({ ...inviteData, full_name: e.target.value })}
-            error={inviteErrors.full_name}
-            placeholder="Juan Pérez"
-            required
-          />
-
-          <Input
-            label="Correo Electrónico"
-            type="email"
-            value={inviteData.email}
-            onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
-            error={inviteErrors.email}
-            placeholder="usuario@ejemplo.com"
-            required
-          />
-
-          <Select
-            label="Rol"
-            value={inviteData.role_id}
-            onChange={(e) => setInviteData({ ...inviteData, role_id: e.target.value })}
-            error={inviteErrors.role_id}
-            options={[
-              { value: '', label: 'Seleccionar rol...' },
-              ...roles.map(role => ({
-                value: role.id,
-                label: `${role.name} - ${role.description}`
-              }))
-            ]}
-            required
-          />
-
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
-            Se enviará una invitación por correo electrónico. El usuario deberá crear su contraseña para activar su cuenta.
-          </div>
-
-          <FormActions>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setShowInviteModal(false)
-                setInviteData({ email: '', full_name: '', role_id: '' })
-                setInviteErrors({})
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              loading={inviting}
-              disabled={inviting}
-            >
-              Enviar Invitación
-            </Button>
-          </FormActions>
-        </form>
-      </Modal>
-
-      {/* Modal de creación directa */}
+      {/* Modal de Crear Usuario */}
       <Modal
         isOpen={showCreateModal}
-        onClose={() => {
-          setShowCreateModal(false)
-          setCreateData({ email: '', password: '', full_name: '', role_id: '' })
-          setCreateErrors({})
-        }}
-        title="Crear Usuario Directamente"
+        onClose={() => setShowCreateModal(false)}
+        title="Crear Nuevo Usuario"
       >
-        <form onSubmit={(e) => { e.preventDefault(); handleCreateUser(); }} className="space-y-4">
+        <div className="space-y-4">
+          <Input
+            label="Email"
+            type="email"
+            value={createData.email}
+            onChange={(e) => setCreateData({ ...createData, email: e.target.value })}
+            error={createErrors.email}
+            required
+          />
+
+          <Input
+            label="Contraseña"
+            type="password"
+            value={createData.password}
+            onChange={(e) => setCreateData({ ...createData, password: e.target.value })}
+            error={createErrors.password}
+            helperText="Mínimo 6 caracteres"
+            required
+          />
+
           <Input
             label="Nombre Completo"
             value={createData.full_name}
             onChange={(e) => setCreateData({ ...createData, full_name: e.target.value })}
             error={createErrors.full_name}
-            placeholder="Juan Pérez"
             required
           />
-
-          <Input
-            label="Correo Electrónico"
-            type="email"
-            value={createData.email}
-            onChange={(e) => setCreateData({ ...createData, email: e.target.value })}
-            error={createErrors.email}
-            placeholder="usuario@ejemplo.com"
-            required
-          />
-
-          <div>
-            <Input
-              label="Contraseña Temporal"
-              type="password"
-              value={createData.password}
-              onChange={(e) => setCreateData({ ...createData, password: e.target.value })}
-              error={createErrors.password}
-              placeholder="••••••••"
-              required
-              helperText="Mínimo 6 caracteres. El usuario deberá cambiarla en su primer acceso."
-            />
-            <button
-              type="button"
-              onClick={() => setCreateData({ ...createData, password: generateTempPassword() })}
-              className="mt-2 text-sm text-blue-600 hover:text-blue-800"
-            >
-              Generar contraseña aleatoria
-            </button>
-          </div>
 
           <Select
             label="Rol"
             value={createData.role_id}
             onChange={(e) => setCreateData({ ...createData, role_id: e.target.value })}
             error={createErrors.role_id}
-            options={[
-              { value: '', label: 'Seleccionar rol...' },
-              ...roles.map(role => ({
-                value: role.id,
-                label: `${role.name} - ${role.description}`
-              }))
-            ]}
             required
+            options={roles.map(role => ({
+              value: role.id,
+              label: role.name
+            }))}
           />
 
-          <div className="space-y-3">
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
-              <strong>Requisitos de contraseña:</strong>
-              <ul className="list-disc list-inside mt-1">
-                <li>Mínimo 6 caracteres</li>
-                <li>Se recomienda usar mayúsculas, minúsculas y números</li>
-              </ul>
-            </div>
-            
-            <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-sm text-amber-800">
-              <strong>Importante:</strong> Deberás compartir estas credenciales con el usuario de forma segura.
-            </div>
-          </div>
-
-          <FormActions>
+          <div className="flex justify-end space-x-2 pt-4">
             <Button
-              type="button"
               variant="outline"
-              onClick={() => {
-                setShowCreateModal(false)
-                setCreateData({ email: '', password: '', full_name: '', role_id: '' })
-                setCreateErrors({})
-              }}
+              onClick={() => setShowCreateModal(false)}
+              disabled={creating}
             >
               Cancelar
             </Button>
             <Button
-              type="submit"
+              onClick={handleCreateUser}
               loading={creating}
               disabled={creating}
             >
               Crear Usuario
             </Button>
-          </FormActions>
-        </form>
+          </div>
+        </div>
       </Modal>
 
       {/* Información sobre roles */}
       <Card>
         <div className="p-4">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Roles Disponibles</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {roles.map(role => (
               <div key={role.id} className="border rounded-lg p-3">
                 <h4 className="font-medium text-gray-900">{role.name}</h4>
@@ -717,4 +382,4 @@ Por favor, comparte estas credenciales de forma segura con el usuario.`
   )
 }
 
-export default withAuth(UsersPage, { resource: 'users', action: 'read' })
+export default withAuth(UsersPage)

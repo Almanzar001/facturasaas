@@ -16,6 +16,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import { generateInvoicePDFAsync } from '@/components/LazyPDF'
 import type { InvoicePDFData } from '@/pdf/generateInvoicePDF'
 import { SettingsService } from '@/services/settings'
+import { useRequirePaymentAccounts } from '@/hooks/usePaymentAccountValidation'
 
 function InvoicesPageContent() {
   const router = useRouter()
@@ -29,6 +30,13 @@ function InvoicesPageContent() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [pdfLoading, setPdfLoading] = useState<string | null>(null)
   const [preselectedClient, setPreselectedClient] = useState<string | null>(null)
+  
+  // Validar cuentas de pago antes de permitir crear facturas
+  const { canProceed: canProceedAccounts, validation: accountValidation, loading: accountLoading } = useRequirePaymentAccounts()
+  
+  // Solo validar cuentas de pago a nivel de página, las secuencias se validan por tipo de comprobante
+  const canProceed = canProceedAccounts
+  const validationLoading = accountLoading
 
   useEffect(() => {
     loadInvoices()
@@ -320,7 +328,11 @@ function InvoicesPageContent() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Facturas</h1>
-        <Button onClick={handleCreateInvoice}>
+        <Button 
+          onClick={handleCreateInvoice}
+          disabled={!canProceed || validationLoading}
+          title={!canProceedAccounts ? 'Configura las cuentas de destino primero' : ''}
+        >
           Nueva Factura
         </Button>
       </div>

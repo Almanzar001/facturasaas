@@ -1,8 +1,10 @@
 import { supabase } from './supabaseClient'
+import { organizationService } from './organizations'
 
 export interface Product {
   id: string
   user_id: string
+  organization_id: string
   name: string
   description?: string
   price: number
@@ -27,16 +29,34 @@ export interface UpdateProductData extends Partial<CreateProductData> {
 }
 
 export class ProductService {
-  static async getAll(includeInactive: boolean = false): Promise<Product[]> {
-    // Get current user for authentication
+  // Utility function to create the proper filter for organization/user
+  private static async createOrganizationFilter() {
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) {
       throw new Error('No authenticated user')
     }
 
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      // If no organization, just filter by user_id
+      return { filter: `user_id.eq.${userData.user.id}`, userId: userData.user.id, organizationId: null }
+    }
+
+    // Filter by organization_id or (organization_id is null AND user_id matches)
+    return { 
+      filter: `organization_id.eq.${organizationId},and(organization_id.is.null,user_id.eq.${userData.user.id})`,
+      userId: userData.user.id,
+      organizationId
+    }
+  }
+
+  static async getAll(includeInactive: boolean = false): Promise<Product[]> {
+    const { filter } = await this.createOrganizationFilter()
+
     let query = supabase
       .from('products')
       .select('*')
+      .or(filter)
       .order('name', { ascending: true })
 
     if (!includeInactive) {
@@ -53,10 +73,13 @@ export class ProductService {
   }
 
   static async getById(id: string): Promise<Product | null> {
+    const { filter } = await this.createOrganizationFilter()
+
     const { data, error } = await supabase
       .from('products')
       .select('*')
       .eq('id', id)
+      .or(filter)
       .single()
 
     if (error) {
@@ -70,14 +93,16 @@ export class ProductService {
   }
 
   static async create(productData: CreateProductData): Promise<Product> {
-    // Get current user for authentication
-    const { data: userData } = await supabase.auth.getUser()
-    if (!userData.user) {
-      throw new Error('No authenticated user')
+    const { userId, organizationId } = await this.createOrganizationFilter()
+    
+    if (!organizationId) {
+      throw new Error('No organization selected')
     }
 
     const productToCreate = {
       ...productData,
+      user_id: userId,
+      organization_id: organizationId,
       unit: productData.unit || 'unidad',
       is_active: productData.is_active !== undefined ? productData.is_active : true
     }
@@ -96,10 +121,13 @@ export class ProductService {
   }
 
   static async update(id: string, productData: Partial<CreateProductData>): Promise<Product> {
+    const { filter } = await this.createOrganizationFilter()
+
     const { data, error } = await supabase
       .from('products')
       .update(productData)
       .eq('id', id)
+      .or(filter)
       .select('*')
       .single()
 
@@ -111,10 +139,13 @@ export class ProductService {
   }
 
   static async delete(id: string): Promise<void> {
+    const { filter } = await this.createOrganizationFilter()
+
     const { error } = await supabase
       .from('products')
       .delete()
       .eq('id', id)
+      .or(filter)
 
     if (error) {
       throw new Error(`Error deleting product: ${error.message}`)
@@ -131,9 +162,12 @@ export class ProductService {
   }
 
   static async search(query: string): Promise<Product[]> {
+    const { filter } = await this.createOrganizationFilter()
+
     const { data, error } = await supabase
       .from('products')
       .select('*')
+      .or(filter)
       .or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`)
       .eq('is_active', true)
       .order('name', { ascending: true })
@@ -146,9 +180,12 @@ export class ProductService {
   }
 
   static async getByCategory(category: string): Promise<Product[]> {
+    const { filter } = await this.createOrganizationFilter()
+
     const { data, error } = await supabase
       .from('products')
       .select('*')
+      .or(filter)
       .eq('category', category)
       .eq('is_active', true)
       .order('name', { ascending: true })
@@ -161,9 +198,12 @@ export class ProductService {
   }
 
   static async getCategories(): Promise<string[]> {
+    const { filter } = await this.createOrganizationFilter()
+
     const { data, error } = await supabase
       .from('products')
       .select('category')
+      .or(filter)
       .not('category', 'is', null)
       .eq('is_active', true)
 
@@ -190,9 +230,12 @@ export class ProductService {
 
     if (error) {
       // Fallback to old method if view doesn't exist
+      const { filter } = await this.createOrganizationFilter()
+      
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('id, is_active, price, category')
+        .or(filter)
 
       if (productsError) {
         throw new Error(`Error fetching product stats: ${productsError.message}`)

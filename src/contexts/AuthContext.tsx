@@ -9,10 +9,11 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   login: (data: { email: string; password: string }) => Promise<{ error: string | null }>
-  register: (data: { email: string; password: string; full_name: string; company_name?: string }) => Promise<{ error: string | null }>
+  register: (data: { email: string; password: string; full_name: string; company_name?: string; organization_email?: string }) => Promise<{ error: string | null }>
   logout: () => Promise<void>
   canAccess: (resource: string) => boolean
   hasPermission: (resource: string, action: string) => Promise<boolean>
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -22,27 +23,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Optimización: usar getSession en lugar de getCurrentUser al inicio
+    // Obtener información correcta del usuario desde la tabla users
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         
         if (session?.user) {
-          // Crear usuario básico sin consulta extra a la BD
-          const user: User = {
-            id: session.user.id,
-            email: session.user.email!,
-            full_name: session.user.user_metadata?.full_name || '',
-            company_name: session.user.user_metadata?.company_name || '',
-            role_id: '',
-            role_name: 'user',
-            is_active: true,
-            created_at: session.user.created_at,
-            updated_at: session.user.updated_at || session.user.created_at
+          // Consultar la tabla users para obtener información actualizada con rol
+          const { data: userData } = await supabase
+            .from('users')
+            .select(`
+              id, email, full_name, company_name, role_id, is_active, 
+              created_at, updated_at,
+              role:roles(name, description)
+            `)
+            .eq('id', session.user.id)
+            .single()
+          
+          if (userData) {
+            const user: User = {
+              id: userData.id,
+              email: userData.email,
+              full_name: userData.full_name || '',
+              company_name: userData.company_name || '',
+              role_id: userData.role_id || '',
+              role_name: (userData.role as any)?.name || 'user',
+              role_description: (userData.role as any)?.description || '',
+              is_active: userData.is_active,
+              created_at: userData.created_at,
+              updated_at: userData.updated_at
+            }
+            setUser(user)
           }
-          setUser(user)
         }
       } catch (error) {
+        // Error loading user data
       } finally {
         setLoading(false)
       }
@@ -53,18 +68,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        const user: User = {
-          id: session.user.id,
-          email: session.user.email!,
-          full_name: session.user.user_metadata?.full_name || '',
-          company_name: session.user.user_metadata?.company_name || '',
-          role_id: '',
-          role_name: 'user',
-          is_active: true,
-          created_at: session.user.created_at,
-          updated_at: session.user.updated_at || session.user.created_at
+        // Consultar la tabla users para obtener información actualizada con rol
+        const { data: userData } = await supabase
+          .from('users')
+          .select(`
+            id, email, full_name, company_name, role_id, is_active, 
+            created_at, updated_at,
+            role:roles(name, description)
+          `)
+          .eq('id', session.user.id)
+          .single()
+        
+        if (userData) {
+          const user: User = {
+            id: userData.id,
+            email: userData.email,
+            full_name: userData.full_name || '',
+            company_name: userData.company_name || '',
+            role_id: userData.role_id || '',
+            role_name: (userData.role as any)?.name || 'user',
+            role_description: (userData.role as any)?.description || '',
+            is_active: userData.is_active,
+            created_at: userData.created_at,
+            updated_at: userData.updated_at
+          }
+          setUser(user)
         }
-        setUser(user)
       } else {
         setUser(null)
       }
@@ -84,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: result.error }
   }
 
-  const register = async (data: { email: string; password: string; full_name: string; company_name?: string }) => {
+  const register = async (data: { email: string; password: string; full_name: string; company_name?: string; organization_email?: string }) => {
     const result = await AuthService.register(data)
     if (result.user) {
       setUser(result.user)
@@ -107,9 +136,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       'quotes', 'expenses', 'reports', 'settings'
     ]
     
-    // Solo admin puede acceder a usuarios
+    // Solo admin o owner pueden acceder a usuarios
     if (resource === 'users') {
-      return user.role_name === 'admin'
+      return user.role_name === 'admin' || user.role_name === 'owner'
     }
     
     return allowedResources.includes(resource)
@@ -125,6 +154,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const refreshUser = async () => {
+    try {
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError) {
+        return
+      }
+      
+      if (!authUser) {
+        return
+      }
+      
+      // Simplificar: solo actualizar los datos básicos sin consulta compleja
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, email, full_name, company_name, role_id, is_active, created_at, updated_at')
+        .eq('id', authUser.id)
+        .single()
+      
+      if (userError) {
+        // Usar datos básicos de auth si falla la consulta
+        setUser(prev => prev ? { ...prev, full_name: authUser.user_metadata?.full_name || prev.full_name } : null)
+        return
+      }
+      
+      // Actualizar usuario con datos de la BD
+      setUser({
+        id: userData.id,
+        email: userData.email,
+        full_name: userData.full_name,
+        company_name: userData.company_name,
+        role_id: userData.role_id,
+        role_name: 'viewer', // Por simplicidad
+        role_description: '',
+        is_active: userData.is_active,
+        last_login: undefined,
+        created_at: userData.created_at,
+        updated_at: userData.updated_at,
+        current_organization_id: undefined
+      })
+    } catch (error) {
+      // Error in refreshUser
+    }
+  }
+
   const value = {
     user,
     loading,
@@ -133,6 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     canAccess,
     hasPermission,
+    refreshUser,
   }
 
   return (

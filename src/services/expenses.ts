@@ -1,8 +1,10 @@
 import { supabase } from './supabaseClient'
+import { organizationService } from './organizations'
 
 export interface Expense {
   id: string
   user_id: string
+  organization_id: string
   description: string
   amount: number
   category: string
@@ -49,9 +51,16 @@ export class ExpenseService {
       throw new Error('No authenticated user')
     }
 
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -62,10 +71,17 @@ export class ExpenseService {
   }
 
   static async getById(id: string): Promise<Expense | null> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
       .eq('id', id)
+      .eq('organization_id', organizationId)
       .single()
 
     if (error) {
@@ -85,9 +101,18 @@ export class ExpenseService {
       throw new Error('No authenticated user')
     }
 
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('expenses')
-      .insert([expenseData])
+      .insert([{
+        ...expenseData,
+        organization_id: organizationId
+      }])
       .select('*')
       .single()
 
@@ -99,10 +124,17 @@ export class ExpenseService {
   }
 
   static async update(id: string, expenseData: Partial<CreateExpenseData>): Promise<Expense> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('expenses')
       .update(expenseData)
       .eq('id', id)
+      .eq('organization_id', organizationId)
       .select('*')
       .single()
 
@@ -114,10 +146,17 @@ export class ExpenseService {
   }
 
   static async delete(id: string): Promise<void> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { error } = await supabase
       .from('expenses')
       .delete()
       .eq('id', id)
+      .eq('organization_id', organizationId)
 
     if (error) {
       throw new Error(`Error deleting expense: ${error.message}`)
@@ -125,10 +164,16 @@ export class ExpenseService {
   }
 
   static async getByDateRange(startDate: string, endDate: string): Promise<Expense[]> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
-      .eq('transaction_type', 'expense')
+      .eq('organization_id', organizationId)
       .gte('date', startDate)
       .lte('date', endDate)
       .order('date', { ascending: false })
@@ -141,10 +186,16 @@ export class ExpenseService {
   }
 
   static async getByCategory(category: string): Promise<Expense[]> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
-      .eq('transaction_type', 'expense')
+      .eq('organization_id', organizationId)
       .eq('category', category)
       .order('date', { ascending: false })
 
@@ -177,11 +228,18 @@ export class ExpenseService {
     monthlyTotals: Record<string, number>
     topCategories: Array<{ category: string; amount: number; count: number }>
   }> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     try {
       // Intentar usar la vista de estadísticas si existe
       const { data: viewData, error: viewError } = await supabase
         .from('expense_statistics')
         .select('*')
+        .eq('organization_id', organizationId)
         .single()
 
       if (!viewError && viewData) {
@@ -192,7 +250,7 @@ export class ExpenseService {
         const { data: categoryData, error: categoryError } = await supabase
           .from('expenses')
           .select('category, amount, date')
-          .eq('transaction_type', 'expense')
+          .eq('organization_id', organizationId)
 
         if (categoryError) {
           throw new Error(`Error fetching category data: ${categoryError.message}`)
@@ -238,7 +296,7 @@ export class ExpenseService {
     const { data: expensesData, error: expensesError } = await supabase
       .from('expenses')
       .select('*')
-      .eq('transaction_type', 'expense')
+      .eq('organization_id', organizationId)
 
     if (expensesError) {
       throw new Error(`Error fetching expenses: ${expensesError.message}`)
@@ -285,6 +343,12 @@ export class ExpenseService {
     total: number
     categories: Record<string, number>
   }> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const now = new Date()
     const year = now.getFullYear()
     const month = now.getMonth() + 1
@@ -305,9 +369,16 @@ export class ExpenseService {
   }
 
   static async search(query: string): Promise<Expense[]> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
+      .eq('organization_id', organizationId)
       .or(`description.ilike.%${query}%,category.ilike.%${query}%,notes.ilike.%${query}%`)
       .order('date', { ascending: false })
 
@@ -319,9 +390,16 @@ export class ExpenseService {
   }
 
   static async getRecentExpenses(limit: number = 10): Promise<Expense[]> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
       .limit(limit)
 

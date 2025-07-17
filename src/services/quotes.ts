@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient'
 import { Client } from './clients'
 import { CreateInvoiceData, InvoiceService } from './invoices'
 import { SettingsService } from './settings'
+import { organizationService } from './organizations'
 
 export interface QuoteItem {
   id: string
@@ -18,6 +19,7 @@ export interface QuoteItem {
 export interface Quote {
   id: string
   user_id: string
+  organization_id: string
   client_id: string
   quote_number: string
   date: string
@@ -62,6 +64,12 @@ export class QuoteService {
       throw new Error('No authenticated user')
     }
 
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     if (includeClient) {
       const { data, error } = await supabase
         .from('quotes')
@@ -70,6 +78,7 @@ export class QuoteService {
           client:clients(*),
           items:quote_items(*)
         `)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -81,6 +90,7 @@ export class QuoteService {
       const { data, error } = await supabase
         .from('quotes')
         .select('*')
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -92,16 +102,17 @@ export class QuoteService {
   }
 
   static async getById(id: string): Promise<Quote | null> {
-    // Get current user for authentication
-    const { data: userData } = await supabase.auth.getUser()
-    if (!userData.user) {
-      throw new Error('No authenticated user')
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
     }
 
     const { data, error } = await supabase
       .from('quotes')
       .select('*, client:clients(*), items:quote_items(*)')
       .eq('id', id)
+      .eq('organization_id', organizationId)
       .single()
 
     if (error) {
@@ -121,6 +132,12 @@ export class QuoteService {
       throw new Error('No authenticated user')
     }
 
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { items, ...quote } = quoteData
 
     const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
@@ -135,6 +152,7 @@ export class QuoteService {
       .from('quotes')
       .insert([{
         ...quote,
+        organization_id: organizationId,
         subtotal,
         tax_amount: taxAmount,
         total,
@@ -170,6 +188,12 @@ export class QuoteService {
   }
 
   static async update(id: string, quoteData: Partial<CreateQuoteData>): Promise<Quote> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { items, ...quoteFields } = quoteData
     let updateData: any = { ...quoteFields }
 
@@ -211,6 +235,7 @@ export class QuoteService {
       .from('quotes')
       .update(updateData)
       .eq('id', id)
+      .eq('organization_id', organizationId)
       .select('*')
       .single()
 
@@ -222,10 +247,17 @@ export class QuoteService {
   }
 
   static async delete(id: string): Promise<void> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { error } = await supabase
       .from('quotes')
       .delete()
       .eq('id', id)
+      .eq('organization_id', organizationId)
 
     if (error) {
       throw new Error(`Error deleting quote: ${error.message}`)
@@ -233,10 +265,17 @@ export class QuoteService {
   }
 
   static async updateStatus(id: string, status: Quote['status']): Promise<Quote> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('quotes')
       .update({ status })
       .eq('id', id)
+      .eq('organization_id', organizationId)
       .select('*')
       .single()
 
@@ -285,10 +324,17 @@ export class QuoteService {
   }
 
   static async getByClient(clientId: string): Promise<Quote[]> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('quotes')
       .select('*, client:clients(*), items:quote_items(*)')
       .eq('client_id', clientId)
+      .eq('organization_id', organizationId)
       .order('date', { ascending: false })
 
     if (error) {
@@ -299,11 +345,18 @@ export class QuoteService {
   }
 
   static async getExpiredQuotes(): Promise<Quote[]> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const today = new Date().toISOString().split('T')[0]
     
     const { data, error } = await supabase
       .from('quotes')
       .select('*, client:clients(*), items:quote_items(*)')
+      .eq('organization_id', organizationId)
       .lt('expiry_date', today)
       .neq('status', 'accepted')
       .neq('status', 'rejected')
@@ -334,9 +387,16 @@ export class QuoteService {
     acceptedAmount: number
     conversionRate: number
   }> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('quotes')
       .select('id, status, total')
+      .eq('organization_id', organizationId)
 
     if (error) {
       throw new Error(`Error fetching quote stats: ${error.message}`)
@@ -369,9 +429,16 @@ export class QuoteService {
       throw new Error('No authenticated user')
     }
 
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('quotes')
       .select('quote_number')
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
       .limit(1)
 

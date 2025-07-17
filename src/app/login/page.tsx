@@ -1,22 +1,24 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 import Input from '@/components/Input'
 import Button from '@/components/Button'
 import Card from '@/components/Card'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function LoginPage() {
+function LoginContent() {
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
   const { login } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -36,6 +38,13 @@ export default function LoginPage() {
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
+
+  useEffect(() => {
+    const message = searchParams.get('message')
+    if (message === 'registered') {
+      setSuccessMessage('¡Registro exitoso! Ya puedes iniciar sesión con tus credenciales.')
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,6 +89,12 @@ export default function LoginPage() {
 
         <Card className="mt-8">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {successMessage && (
+              <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-md text-sm">
+                {successMessage}
+              </div>
+            )}
+
             {errors.general && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
                 {errors.general}
@@ -191,5 +206,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LoginContent />
+    </Suspense>
   )
 }

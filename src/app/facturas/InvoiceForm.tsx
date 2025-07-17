@@ -16,6 +16,7 @@ import FiscalDocumentSelectorAutoCreate from '@/components/FiscalDocumentSelecto
 import { validateRequired } from '@/utils/validators'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { generateInvoicePDF, downloadPDF, InvoicePDFData } from '@/pdf/generateInvoicePDF'
+import { useRequireDocumentTypeSequences } from '@/hooks/useDocumentTypeValidation'
 
 interface InvoiceFormProps {
   invoice?: Invoice | null
@@ -102,6 +103,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
   })
   const [showInitialPayment, setShowInitialPayment] = useState(false)
   const [showNewPayment, setShowNewPayment] = useState(false)
+
+  // Validación específica para tipo de comprobante
+  const { validateBeforeSubmit, isValid: sequenceValid } = useRequireDocumentTypeSequences(formData.fiscal_document_type_id || null)
 
   useEffect(() => {
     loadClients()
@@ -321,6 +325,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
     e.preventDefault()
     
     if (!validateForm()) return
+    
+    // Validar secuencias fiscales para el tipo de comprobante seleccionado
+    if (!validateBeforeSubmit()) return
 
     try {
       setLoading(true)
@@ -910,6 +917,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, preselectedClientId,
         <Button
           type="submit"
           loading={loading}
+          disabled={loading || (!sequenceValid && !!formData.fiscal_document_type_id)}
+          title={!sequenceValid && formData.fiscal_document_type_id ? 'Configura las secuencias fiscales para este tipo de comprobante' : undefined}
         >
           {invoice ? 'Actualizar' : 'Crear'} Factura
         </Button>

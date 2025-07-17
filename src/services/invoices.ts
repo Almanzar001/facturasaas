@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient'
 import { Client } from './clients'
 import { Product } from './products'
 import { FiscalDocumentService } from './fiscalDocumentsAutoCreate'
+import { organizationService } from './organizations'
 
 export interface InvoiceItem {
   id: string
@@ -18,6 +19,7 @@ export interface InvoiceItem {
 export interface Invoice {
   id: string
   user_id: string
+  organization_id: string
   client_id: string
   invoice_number: string
   fiscal_document_type_id?: string
@@ -71,6 +73,12 @@ export class InvoiceService {
       throw new Error('No authenticated user')
     }
 
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     if (includeClient) {
       const { data, error } = await supabase
         .from('invoices')
@@ -79,6 +87,7 @@ export class InvoiceService {
           client:clients(*),
           items:invoice_items(*)
         `)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
         .limit(50)
 
@@ -91,6 +100,7 @@ export class InvoiceService {
       const { data, error } = await supabase
         .from('invoices')
         .select('*')
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
         .limit(50)
 
@@ -112,10 +122,17 @@ export class InvoiceService {
       throw new Error('No authenticated user')
     }
 
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     // Get total count for all invoices
     const { count } = await supabase
       .from('invoices')
       .select('*', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
 
     // Get paginated data
     if (includeClient) {
@@ -126,6 +143,7 @@ export class InvoiceService {
           client:clients(*),
           items:invoice_items(*)
         `)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
         .range(from, to)
 
@@ -138,6 +156,7 @@ export class InvoiceService {
       const { data, error } = await supabase
         .from('invoices')
         .select('*')
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
         .range(from, to)
 
@@ -150,6 +169,12 @@ export class InvoiceService {
   }
 
   static async getById(id: string): Promise<Invoice | null> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('invoices')
       .select(`
@@ -158,6 +183,7 @@ export class InvoiceService {
         items:invoice_items(*)
       `)
       .eq('id', id)
+      .eq('organization_id', organizationId)
       .single()
 
     if (error) {
@@ -175,6 +201,12 @@ export class InvoiceService {
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) {
       throw new Error('No authenticated user')
+    }
+
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
     }
 
     const { items, apply_tax = true, tax_rate = 18, ...invoice } = invoiceData
@@ -207,6 +239,7 @@ export class InvoiceService {
       .insert([{
         ...invoice,
         ...fiscalData,
+        organization_id: organizationId,
         subtotal,
         tax_amount: taxAmount,
         total,
@@ -242,6 +275,12 @@ export class InvoiceService {
   }
 
   static async update(id: string, invoiceData: Partial<CreateInvoiceData>): Promise<Invoice> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { items, apply_tax, tax_rate, ...invoiceFields } = invoiceData
     let updateData: any = { ...invoiceFields }
 
@@ -281,6 +320,7 @@ export class InvoiceService {
       .from('invoices')
       .update(updateData)
       .eq('id', id)
+      .eq('organization_id', organizationId)
       .select('*')
       .single()
 
@@ -292,10 +332,17 @@ export class InvoiceService {
   }
 
   static async delete(id: string): Promise<void> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { error } = await supabase
       .from('invoices')
       .delete()
       .eq('id', id)
+      .eq('organization_id', organizationId)
 
     if (error) {
       throw new Error(`Error deleting invoice: ${error.message}`)
@@ -303,10 +350,17 @@ export class InvoiceService {
   }
 
   static async updateStatus(id: string, status: Invoice['status']): Promise<Invoice> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('invoices')
       .update({ status })
       .eq('id', id)
+      .eq('organization_id', organizationId)
       .select('*')
       .single()
 
@@ -318,10 +372,10 @@ export class InvoiceService {
   }
 
   static async getByClient(clientId: string): Promise<Invoice[]> {
-    // Get current user for authentication
-    const { data: userData } = await supabase.auth.getUser()
-    if (!userData.user) {
-      throw new Error('No authenticated user')
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
     }
 
     const { data, error } = await supabase
@@ -331,6 +385,7 @@ export class InvoiceService {
         client:clients(*)
       `)
       .eq('client_id', clientId)
+      .eq('organization_id', organizationId)
       .order('date', { ascending: false })
 
     if (error) {
@@ -341,9 +396,16 @@ export class InvoiceService {
   }
 
   static async getByDateRange(startDate: string, endDate: string): Promise<Invoice[]> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data, error } = await supabase
       .from('invoices')
       .select('*, client:clients(*), items:invoice_items(*)')
+      .eq('organization_id', organizationId)
       .gte('date', startDate)
       .lte('date', endDate)
       .order('date', { ascending: false })
@@ -356,11 +418,18 @@ export class InvoiceService {
   }
 
   static async getOverdueInvoices(): Promise<Invoice[]> {
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const today = new Date().toISOString().split('T')[0]
     
     const { data, error } = await supabase
       .from('invoices')
       .select('*, client:clients(*), items:invoice_items(*)')
+      .eq('organization_id', organizationId)
       .lt('due_date', today)
       .neq('status', 'paid')
       .order('due_date', { ascending: true })
@@ -421,9 +490,16 @@ export class InvoiceService {
     }
 
     // Fallback: calcular estadísticas directamente desde la tabla invoices
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const { data: invoicesData, error: invoicesError } = await supabase
       .from('invoices')
       .select('*')
+      .eq('organization_id', organizationId)
 
     if (invoicesError) {
       throw new Error(`Error fetching invoices: ${invoicesError.message}`)

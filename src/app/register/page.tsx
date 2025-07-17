@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Input from '@/components/Input'
 import Button from '@/components/Button'
@@ -13,10 +14,12 @@ export default function RegisterPage() {
     password: '',
     confirmPassword: '',
     full_name: '',
-    company_name: ''
+    company_name: '',
+    organization_email: ''
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+  const router = useRouter()
   const { register } = useAuth()
 
   const validateForm = () => {
@@ -44,6 +47,16 @@ export default function RegisterPage() {
       newErrors.confirmPassword = 'Las contraseñas no coinciden'
     }
 
+    if (!formData.company_name) {
+      newErrors.company_name = 'El nombre de la empresa es requerido'
+    }
+
+    if (!formData.organization_email) {
+      newErrors.organization_email = 'El correo de la organización es requerido'
+    } else if (!/\S+@\S+\.\S+/.test(formData.organization_email)) {
+      newErrors.organization_email = 'Correo de organización inválido'
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -59,11 +72,15 @@ export default function RegisterPage() {
         email: formData.email,
         password: formData.password,
         full_name: formData.full_name,
-        company_name: formData.company_name
+        company_name: formData.company_name,
+        organization_email: formData.organization_email
       })
 
       if (error) {
         setErrors({ general: error })
+      } else {
+        // Successful registration - redirect to login with success message
+        router.push('/login?message=registered')
       }
     } catch (error) {
       setErrors({ general: 'Error al crear la cuenta' })
@@ -109,11 +126,24 @@ export default function RegisterPage() {
             />
 
             <Input
-              label="Nombre de la empresa (opcional)"
+              label="Nombre de la empresa"
               type="text"
               value={formData.company_name}
               onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+              error={errors.company_name}
               placeholder="Mi Empresa S.A."
+              required
+            />
+
+            <Input
+              label="Correo de la organización"
+              type="email"
+              value={formData.organization_email}
+              onChange={(e) => setFormData({ ...formData, organization_email: e.target.value })}
+              error={errors.organization_email}
+              placeholder="admin@miempresa.com"
+              autoComplete="email"
+              required
             />
 
             <Input

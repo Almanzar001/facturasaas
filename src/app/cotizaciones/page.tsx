@@ -25,6 +25,10 @@ export default function QuotesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [pdfLoading, setPdfLoading] = useState<string | null>(null)
   const [convertingToInvoice, setConvertingToInvoice] = useState<string | null>(null)
+  
+  // Las cotizaciones no requieren secuencias fiscales específicas
+  const canProceed = true
+  const validationLoading = false
 
   useEffect(() => {
     loadQuotes()
@@ -339,7 +343,12 @@ export default function QuotesPage() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Cotizaciones</h1>
-        <Button onClick={handleCreateQuote} variant="secondary">
+        <Button 
+          onClick={handleCreateQuote} 
+          variant="secondary"
+          disabled={!canProceed || validationLoading}
+          title={''}
+        >
           Nueva Cotización
         </Button>
       </div>

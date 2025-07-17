@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { simpleOrganizationService } from './organizations-simple'
 
 export interface User {
   id: string
@@ -12,6 +13,7 @@ export interface User {
   last_login?: string
   created_at: string
   updated_at: string
+  current_organization_id?: string
 }
 
 export interface Permission {
@@ -29,6 +31,7 @@ export interface RegisterData {
   password: string
   full_name: string
   company_name?: string
+  organization_email?: string
   role_id?: string
 }
 
@@ -60,7 +63,7 @@ export class AuthService {
       const [userResult, updateResult] = await Promise.all([
         supabase
           .from('users')
-          .select('id, email, full_name, company_name, role_id, is_active, last_login, created_at, updated_at')
+          .select('id, email, full_name, company_name, role_id, is_active, last_login, created_at, updated_at, current_organization_id')
           .eq('id', authData.user.id)
           .single(),
         
@@ -80,6 +83,24 @@ export class AuthService {
         return { user: null, error: 'Tu cuenta ha sido desactivada' }
       }
 
+      // Después del login, asegurar que el usuario tenga una organización seleccionada
+      if (!userResult.data.current_organization_id) {
+        // Buscar la organización del usuario
+        const { data: userOrgs } = await supabase
+          .from('organization_members')
+          .select('organization_id')
+          .eq('user_id', authData.user.id)
+          .eq('is_active', true)
+          .limit(1)
+
+        if (userOrgs && userOrgs.length > 0) {
+          // Seleccionar automáticamente la primera organización
+          await supabase
+            .from('users')
+            .update({ current_organization_id: userOrgs[0].organization_id })
+            .eq('id', authData.user.id)
+        }
+      }
 
       return { 
         user: {
@@ -145,12 +166,34 @@ export class AuthService {
           .eq('id', authData.user.id)
       }
 
+      // Crear organización automáticamente - REQUERIDO para cada usuario
+      if (data.company_name) {
+        try {
+          // Crear organización con el email del usuario como identificador único
+          const organization = await simpleOrganizationService.createOrganization(data.company_name, undefined, authData.user.id);
+          
+          // Actualizar la organización con el email de la organización
+          const organizationEmail = data.organization_email || data.email;
+          await simpleOrganizationService.updateOrganization(organization.id, {
+            email: organizationEmail
+          });
+          
+        } catch (orgError) {
+          // Fallar el registro si no se puede crear la organización
+          throw new Error('No se pudo crear la organización. Intenta nuevamente.');
+        }
+      } else {
+        // Si no hay company_name, fallar el registro
+        throw new Error('El nombre de la empresa es requerido');
+      }
+
       // Obtener información completa del usuario
       const { data: userData } = await supabase
         .from('users')
-        .select('id, email, full_name, company_name, role_id, is_active, last_login, created_at, updated_at')
+        .select('id, email, full_name, company_name, role_id, is_active, last_login, created_at, updated_at, current_organization_id')
         .eq('id', authData.user.id)
         .single()
+
 
       return { 
         user: {
@@ -175,6 +218,10 @@ export class AuthService {
   // Cerrar sesión
   static async logout(): Promise<void> {
     await supabase.auth.signOut()
+    // Redirigir al login después de cerrar sesión
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login'
+    }
   }
 
   // Obtener usuario actual
@@ -271,6 +318,42 @@ export class AuthService {
       return { error: null }
     } catch (error) {
       return { error: 'Error al enviar el correo de recuperación' }
+    }
+  }
+
+  // Obtener datos del usuario
+  static async getUserData(userId: string): Promise<User | null> {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select(`
+          id, email, full_name, company_name, role_id, is_active, 
+          last_login, created_at, updated_at, current_organization_id,
+          role:roles(name, description)
+        `)
+        .eq('id', userId)
+        .single()
+
+      if (error) {
+        return null
+      }
+
+      return {
+        id: data.id,
+        email: data.email,
+        full_name: data.full_name,
+        company_name: data.company_name,
+        role_id: data.role_id,
+        role_name: (data.role as any)?.[0]?.name || 'viewer',
+        role_description: (data.role as any)?.[0]?.description || '',
+        is_active: data.is_active,
+        last_login: data.last_login,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        current_organization_id: data.current_organization_id
+      }
+    } catch (error) {
+      return null
     }
   }
 

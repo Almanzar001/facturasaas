@@ -1,8 +1,10 @@
 import { supabase } from './supabaseClient'
+import { organizationService } from './organizations'
 
 export interface UserSettings {
   id: string
   user_id: string
+  organization_id: string
   company_name: string
   company_rnc?: string
   company_address?: string
@@ -35,39 +37,72 @@ export class SettingsService {
     const { data: user } = await supabase.auth.getUser()
     if (!user.user) return null
 
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
+    // Use organization table since user_settings doesn't exist yet
     const { data, error } = await supabase
-      .from('user_settings')
+      .from('organizations')
       .select('*')
-      .eq('user_id', user.user.id)
+      .eq('id', organizationId)
       .single()
 
     if (error) {
-      // Si no existe configuración, crear una por defecto
-      if (error.code === 'PGRST116') {
-        return this.createDefaultSettings()
-      }
       throw new Error(`Error fetching settings: ${error.message}`)
     }
 
-    return data
+    if (!data) {
+      return this.createDefaultSettings()
+    }
+
+    // Map organization data to UserSettings format
+    const settings: UserSettings = {
+      id: data.id,
+      user_id: user.user.id,
+      organization_id: data.id,
+      company_name: data.name || 'Mi Empresa',
+      company_rnc: data.tax_id || undefined,
+      company_address: data.address || undefined,
+      company_phone: data.phone || undefined,
+      company_email: data.email || undefined,
+      company_logo: data.logo_url || undefined,
+      tax_rate: data.settings?.tax_rate || 18,
+      currency: data.settings?.currency || 'RD$',
+      invoice_prefix: data.settings?.invoice_prefix || 'FACT',
+      quote_prefix: data.settings?.quote_prefix || 'COT',
+      created_at: data.created_at,
+      updated_at: data.updated_at
+    }
+
+    return settings
   }
 
   static async createDefaultSettings(): Promise<UserSettings> {
     const { data: user } = await supabase.auth.getUser()
     if (!user.user) throw new Error('No authenticated user')
 
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
     const defaultSettings = {
-      user_id: user.user.id,
-      company_name: 'Mi Empresa',
-      tax_rate: 18, // ITBIS por defecto 18%
-      currency: 'RD$',
-      invoice_prefix: 'FACT',
-      quote_prefix: 'COT'
+      settings: {
+        tax_rate: 18, // ITBIS por defecto 18%
+        currency: 'RD$',
+        invoice_prefix: 'FACT',
+        quote_prefix: 'COT'
+      }
     }
 
     const { data, error } = await supabase
-      .from('user_settings')
-      .insert([defaultSettings])
+      .from('organizations')
+      .update(defaultSettings)
+      .eq('id', organizationId)
       .select()
       .single()
 
@@ -75,17 +110,71 @@ export class SettingsService {
       throw new Error(`Error creating default settings: ${error.message}`)
     }
 
-    return data
+    // Map back to UserSettings format
+    const settings: UserSettings = {
+      id: data.id,
+      user_id: user.user.id,
+      organization_id: data.id,
+      company_name: data.name || 'Mi Empresa',
+      company_rnc: data.tax_id || undefined,
+      company_address: data.address || undefined,
+      company_phone: data.phone || undefined,
+      company_email: data.email || undefined,
+      company_logo: data.logo_url || undefined,
+      tax_rate: data.settings?.tax_rate || 18,
+      currency: data.settings?.currency || 'RD$',
+      invoice_prefix: data.settings?.invoice_prefix || 'FACT',
+      quote_prefix: data.settings?.quote_prefix || 'COT',
+      created_at: data.created_at,
+      updated_at: data.updated_at
+    }
+
+    return settings
   }
 
   static async updateSettings(settingsData: UpdateSettingsData): Promise<UserSettings> {
     const { data: user } = await supabase.auth.getUser()
     if (!user.user) throw new Error('No authenticated user')
 
+    // Get current organization ID
+    const organizationId = await organizationService.getCurrentOrganizationId()
+    if (!organizationId) {
+      throw new Error('No organization selected')
+    }
+
+    // Get current organization data to merge with new data
+    const { data: currentOrg } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('id', organizationId)
+      .single()
+    
+    // Prepare update data for organizations table
+    const updateData: any = {}
+    
+    // Map settings data to organization table columns
+    if (settingsData.company_name) updateData.name = settingsData.company_name
+    if (settingsData.company_rnc) updateData.tax_id = settingsData.company_rnc
+    if (settingsData.company_address) updateData.address = settingsData.company_address
+    if (settingsData.company_phone) updateData.phone = settingsData.company_phone
+    if (settingsData.company_email) updateData.email = settingsData.company_email
+    if (settingsData.company_logo) updateData.logo_url = settingsData.company_logo
+    
+    // Update settings object
+    const newSettings = {
+      ...currentOrg?.settings,
+      ...(settingsData.tax_rate && { tax_rate: settingsData.tax_rate }),
+      ...(settingsData.currency && { currency: settingsData.currency }),
+      ...(settingsData.invoice_prefix && { invoice_prefix: settingsData.invoice_prefix }),
+      ...(settingsData.quote_prefix && { quote_prefix: settingsData.quote_prefix })
+    }
+    
+    updateData.settings = newSettings
+
     const { data, error } = await supabase
-      .from('user_settings')
-      .update(settingsData)
-      .eq('user_id', user.user.id)
+      .from('organizations')
+      .update(updateData)
+      .eq('id', organizationId)
       .select()
       .single()
 
@@ -93,7 +182,26 @@ export class SettingsService {
       throw new Error(`Error updating settings: ${error.message}`)
     }
 
-    return data
+    // Map back to UserSettings format
+    const settings: UserSettings = {
+      id: data.id,
+      user_id: user.user.id,
+      organization_id: data.id,
+      company_name: data.name || 'Mi Empresa',
+      company_rnc: data.tax_id || undefined,
+      company_address: data.address || undefined,
+      company_phone: data.phone || undefined,
+      company_email: data.email || undefined,
+      company_logo: data.logo_url || undefined,
+      tax_rate: data.settings?.tax_rate || 18,
+      currency: data.settings?.currency || 'RD$',
+      invoice_prefix: data.settings?.invoice_prefix || 'FACT',
+      quote_prefix: data.settings?.quote_prefix || 'COT',
+      created_at: data.created_at,
+      updated_at: data.updated_at
+    }
+
+    return settings
   }
 
   static formatTaxRate(rate: number): string {
