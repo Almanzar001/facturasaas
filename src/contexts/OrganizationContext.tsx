@@ -61,9 +61,10 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
       setCurrentOrganization(tempOrganization);
       setUserOrganizations([{
         organization_id: 'temp-org',
-        role: 'owner',
-        is_current: true,
-        organization: tempOrganization
+        organization_name: tempOrganization.name,
+        organization_slug: tempOrganization.slug,
+        user_role: 'owner',
+        is_current: true
       }]);
       
     } catch (error) {
