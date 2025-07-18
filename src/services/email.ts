@@ -32,6 +32,18 @@ export class EmailService {
         return { success: true }; // Return success to not break the flow
       }
 
+      // In development, override recipient email to avoid Resend restriction
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      if (isDevelopment) {
+        console.log('🚧 Development mode: Sending email to jezrael01@gmail.com instead of', data.invitedEmail);
+        data.invitedEmail = 'jezrael01@gmail.com';
+      }
+
+      // Add timeout to prevent hanging
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Email sending timeout')), 10000) // 10 second timeout
+      );
+
       const invitationUrl = this.getInvitationUrl(data.invitationToken);
       
       const expirationDate = new Date(data.expiresAt).toLocaleDateString('es-ES', {
@@ -48,19 +60,22 @@ export class EmailService {
         expirationDate
       });
 
-      const result = await resend.emails.send({
+      const emailSend = resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL || 'noreply@yourapp.com',
         to: data.invitedEmail,
         subject: `Invitación a ${data.organizationName}`,
         html: emailContent
       });
 
-      if (result.error) {
+      // Race between email send and timeout
+      const result = await Promise.race([emailSend, timeout]) as any;
+
+      if (result?.error) {
         console.error('Error sending invitation email:', result.error);
         return { success: false, error: result.error.message };
       }
 
-      console.log('Invitation email sent successfully:', result.data?.id);
+      console.log('Invitation email sent successfully:', result?.data?.id);
       return { success: true };
     } catch (error) {
       console.error('Error in sendInvitationEmail:', error);

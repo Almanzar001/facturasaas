@@ -45,24 +45,29 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
     try {
       setIsLoading(true);
       
-      // Load user's organizations
-      const organizations = await simpleOrganizationService.getUserOrganizations();
-      setUserOrganizations(organizations);
-
-      // Load current organization
-      const current = await simpleOrganizationService.getCurrentOrganization();
-      setCurrentOrganization(current);
-
-      // If user has no current organization but has organizations, set the first one
-      if (!current && organizations.length > 0) {
-        // Para SaaS real: cada usuario debe tener exactamente una organización
-        // Seleccionar automáticamente la primera (y debería ser la única)
-        await simpleOrganizationService.switchOrganization(organizations[0].organization_id);
-        const newCurrent = await simpleOrganizationService.getCurrentOrganization();
-        setCurrentOrganization(newCurrent);
-      }
+      // TEMPORAL: Deshabilitar organizaciones hasta que se arregle la base de datos
+      console.log('🚧 Sistema de organizaciones deshabilitado temporalmente');
+      
+      // Crear una organización temporal en memoria
+      const tempOrganization: Organization = {
+        id: 'temp-org',
+        name: 'Organización Temporal',
+        slug: 'temp',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_active: true
+      };
+      
+      setCurrentOrganization(tempOrganization);
+      setUserOrganizations([{
+        organization_id: 'temp-org',
+        role: 'owner',
+        is_current: true,
+        organization: tempOrganization
+      }]);
+      
     } catch (error) {
-      // Error loading organizations
+      console.error('Error loading organizations:', error);
     } finally {
       setIsLoading(false);
     }

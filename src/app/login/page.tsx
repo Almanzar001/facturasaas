@@ -59,8 +59,9 @@ function LoginContent() {
       if (error) {
         setErrors({ general: error })
       } else {
-        // Redirigir al dashboard después del login exitoso
-        router.push('/dashboard')
+        // Redirigir a la URL de redirección si existe, sino al dashboard
+        const redirectUrl = searchParams.get('redirect')
+        router.push(redirectUrl || '/dashboard')
       }
     } catch (error) {
       setErrors({ general: 'Error al iniciar sesión' })

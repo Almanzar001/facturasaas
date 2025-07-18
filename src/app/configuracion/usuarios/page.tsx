@@ -31,13 +31,11 @@ export default function ConfiguracionUsuariosPage() {
     
     setIsLoading(true);
     try {
-      const [membersData, invitationsData] = await Promise.all([
-        organizationService.getOrganizationMembers(currentOrganization.id),
-        InvitationService.getOrganizationInvitations(currentOrganization.id)
-      ]);
-      
-      setMembers(membersData);
-      setInvitations(invitationsData);
+      // TEMPORAL: Deshabilitar carga de datos hasta que se arregle la base de datos
+      console.log('🚧 Sistema de invitaciones deshabilitado temporalmente');
+      setMembers([]);
+      setInvitations([]);
+      setMessage('⚠️ Sistema de invitaciones temporalmente deshabilitado');
     } catch (error) {
       setMessage('Error al cargar datos');
     } finally {
@@ -48,68 +46,9 @@ export default function ConfiguracionUsuariosPage() {
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!currentOrganization) {
-      setMessage('❌ No hay organización seleccionada');
-      return;
-    }
-
-    if (!inviteForm.email.trim()) {
-      setMessage('❌ El email es requerido');
-      return;
-    }
-
-    setIsLoading(true);
-    setMessage('');
-    setInvitationUrl('');
-
-    try {
-      // Create invitation
-      const result = await InvitationService.createInvitation(
-        currentOrganization.id,
-        inviteForm.email.trim(),
-        inviteForm.role
-      );
-
-      if (result.success) {
-        const url = InvitationService.getInvitationUrl(result.token!);
-        setInvitationUrl(url);
-        
-        // Send email invitation
-        setMessage('✅ Invitación creada. Enviando email...');
-        
-        try {
-          const emailResponse = await fetch('/api/invitations/send-email', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              invitationToken: result.token
-            }),
-          });
-
-          const emailResult = await emailResponse.json();
-          
-          if (emailResult.success) {
-            setMessage('✅ Invitación creada y enviada por email exitosamente');
-          } else {
-            setMessage(`✅ Invitación creada. ⚠️ Error enviando email: ${emailResult.error}. Puedes copiar el enlace manualmente.`);
-          }
-        } catch (emailError) {
-          console.error('Error sending email:', emailError);
-          setMessage('✅ Invitación creada. ⚠️ Error enviando email. Puedes copiar el enlace manualmente.');
-        }
-        
-        setInviteForm({ email: '', role: 'member' });
-        await loadData();
-      } else {
-        setMessage(`❌ Error: ${result.error}`);
-      }
-    } catch (error: any) {
-      setMessage(`❌ Error: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
+    // TEMPORAL: Deshabilitar invitaciones hasta que se arregle la base de datos
+    setMessage('⚠️ Sistema de invitaciones temporalmente deshabilitado');
+    return;
   };
 
   const handleCancelInvitation = async (invitationId: string) => {

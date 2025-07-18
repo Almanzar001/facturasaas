@@ -1,14 +1,14 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, Suspense } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Input from '@/components/Input'
 import Button from '@/components/Button'
 import Card from '@/components/Card'
 
-export default function RegisterPage() {
+function RegisterContent() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -20,10 +20,13 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { register } = useAuth()
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
+    const redirectUrl = searchParams.get('redirect')
+    const isFromInvitation = redirectUrl && redirectUrl.includes('/invitations?token=')
 
     if (!formData.full_name) {
       newErrors.full_name = 'El nombre es requerido'
@@ -47,14 +50,17 @@ export default function RegisterPage() {
       newErrors.confirmPassword = 'Las contraseñas no coinciden'
     }
 
-    if (!formData.company_name) {
-      newErrors.company_name = 'El nombre de la empresa es requerido'
-    }
+    // Solo validar campos de empresa si NO viene desde invitación
+    if (!isFromInvitation) {
+      if (!formData.company_name) {
+        newErrors.company_name = 'El nombre de la empresa es requerido'
+      }
 
-    if (!formData.organization_email) {
-      newErrors.organization_email = 'El correo de la organización es requerido'
-    } else if (!/\S+@\S+\.\S+/.test(formData.organization_email)) {
-      newErrors.organization_email = 'Correo de organización inválido'
+      if (!formData.organization_email) {
+        newErrors.organization_email = 'El correo de la organización es requerido'
+      } else if (!/\S+@\S+\.\S+/.test(formData.organization_email)) {
+        newErrors.organization_email = 'Correo de organización inválido'
+      }
     }
 
     setErrors(newErrors)
@@ -68,19 +74,28 @@ export default function RegisterPage() {
 
     try {
       setLoading(true)
+      // Detectar si viene desde una invitación
+      const redirectUrl = searchParams.get('redirect')
+      const isFromInvitation = redirectUrl && redirectUrl.includes('/invitations?token=')
+      
       const { error } = await register({
         email: formData.email,
         password: formData.password,
         full_name: formData.full_name,
-        company_name: formData.company_name,
-        organization_email: formData.organization_email
+        company_name: isFromInvitation ? 'Invitado' : formData.company_name, // Valor temporal si es invitación
+        organization_email: formData.organization_email,
+        skip_organization_creation: Boolean(isFromInvitation) // No crear org si es invitación
       })
 
       if (error) {
         setErrors({ general: error })
       } else {
-        // Successful registration - redirect to login with success message
-        router.push('/login?message=registered')
+        // Successful registration - redirect to login with success message and preserve redirect param
+        const redirectUrl = searchParams.get('redirect')
+        const loginUrl = redirectUrl 
+          ? `/login?message=registered&redirect=${encodeURIComponent(redirectUrl)}`
+          : '/login?message=registered'
+        router.push(loginUrl)
       }
     } catch (error) {
       setErrors({ general: 'Error al crear la cuenta' })
@@ -88,6 +103,9 @@ export default function RegisterPage() {
       setLoading(false)
     }
   }
+
+  const redirectUrl = searchParams.get('redirect')
+  const isFromInvitation = redirectUrl && redirectUrl.includes('/invitations?token=')
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -97,7 +115,7 @@ export default function RegisterPage() {
             FacturaSaaS
           </h1>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Crea tu cuenta
+            {isFromInvitation ? 'Crea tu cuenta para aceptar la invitación' : 'Crea tu cuenta'}
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             O{' '}
@@ -105,6 +123,13 @@ export default function RegisterPage() {
               inicia sesión si ya tienes una cuenta
             </Link>
           </p>
+          {isFromInvitation && (
+            <div className="mt-4 p-3 bg-blue-50 rounded-md">
+              <p className="text-sm text-blue-800 text-center">
+                📧 Estás creando una cuenta para aceptar una invitación a una organización.
+              </p>
+            </div>
+          )}
         </div>
 
         <Card className="mt-8">
@@ -125,26 +150,30 @@ export default function RegisterPage() {
               required
             />
 
-            <Input
-              label="Nombre de la empresa"
-              type="text"
-              value={formData.company_name}
-              onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-              error={errors.company_name}
-              placeholder="Mi Empresa S.A."
-              required
-            />
+            {!isFromInvitation && (
+              <>
+                <Input
+                  label="Nombre de la empresa"
+                  type="text"
+                  value={formData.company_name}
+                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+                  error={errors.company_name}
+                  placeholder="Mi Empresa S.A."
+                  required
+                />
 
-            <Input
-              label="Correo de la organización"
-              type="email"
-              value={formData.organization_email}
-              onChange={(e) => setFormData({ ...formData, organization_email: e.target.value })}
-              error={errors.organization_email}
-              placeholder="admin@miempresa.com"
-              autoComplete="email"
-              required
-            />
+                <Input
+                  label="Correo de la organización"
+                  type="email"
+                  value={formData.organization_email}
+                  onChange={(e) => setFormData({ ...formData, organization_email: e.target.value })}
+                  error={errors.organization_email}
+                  placeholder="admin@miempresa.com"
+                  autoComplete="email"
+                  required
+                />
+              </>
+            )}
 
             <Input
               label="Correo electrónico"
@@ -215,5 +244,20 @@ export default function RegisterPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    }>
+      <RegisterContent />
+    </Suspense>
   )
 }

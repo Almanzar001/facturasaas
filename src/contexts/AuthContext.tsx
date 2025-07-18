@@ -9,7 +9,7 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   login: (data: { email: string; password: string }) => Promise<{ error: string | null }>
-  register: (data: { email: string; password: string; full_name: string; company_name?: string; organization_email?: string }) => Promise<{ error: string | null }>
+  register: (data: { email: string; password: string; full_name: string; company_name?: string; organization_email?: string; skip_organization_creation?: boolean }) => Promise<{ error: string | null }>
   logout: () => Promise<void>
   canAccess: (resource: string) => boolean
   hasPermission: (resource: string, action: string) => Promise<boolean>
@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: result.error }
   }
 
-  const register = async (data: { email: string; password: string; full_name: string; company_name?: string; organization_email?: string }) => {
+  const register = async (data: { email: string; password: string; full_name: string; company_name?: string; organization_email?: string; skip_organization_creation?: boolean }) => {
     const result = await AuthService.register(data)
     if (result.user) {
       setUser(result.user)

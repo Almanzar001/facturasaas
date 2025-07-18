@@ -33,6 +33,7 @@ export interface RegisterData {
   company_name?: string
   organization_email?: string
   role_id?: string
+  skip_organization_creation?: boolean // Para usuarios invitados
 }
 
 export interface AuthResponse {
@@ -166,26 +167,30 @@ export class AuthService {
           .eq('id', authData.user.id)
       }
 
-      // Crear organización automáticamente - REQUERIDO para cada usuario
-      if (data.company_name) {
-        try {
-          // Crear organización con el email del usuario como identificador único
-          const organization = await simpleOrganizationService.createOrganization(data.company_name, undefined, authData.user.id);
-          
-          // Actualizar la organización con el email de la organización
-          const organizationEmail = data.organization_email || data.email;
-          await simpleOrganizationService.updateOrganization(organization.id, {
-            email: organizationEmail
-          });
-          
-        } catch (orgError) {
-          // Fallar el registro si no se puede crear la organización
-          throw new Error('No se pudo crear la organización. Intenta nuevamente.');
+      // Crear organización automáticamente - SOLO si no es un usuario invitado
+      if (!data.skip_organization_creation) {
+        if (data.company_name) {
+          try {
+            // Crear organización con el email del usuario como identificador único
+            const organization = await simpleOrganizationService.createOrganization(data.company_name, undefined, authData.user.id);
+            
+            // Actualizar la organización con el email de la organización
+            const organizationEmail = data.organization_email || data.email;
+            await simpleOrganizationService.updateOrganization(organization.id, {
+              email: organizationEmail
+            });
+            
+          } catch (orgError) {
+            // Fallar el registro si no se puede crear la organización
+            throw new Error('No se pudo crear la organización. Intenta nuevamente.');
+          }
+        } else {
+          // Si no hay company_name, fallar el registro
+          throw new Error('El nombre de la empresa es requerido');
         }
-      } else {
-        // Si no hay company_name, fallar el registro
-        throw new Error('El nombre de la empresa es requerido');
       }
+      // Si skip_organization_creation es true, no crear organización
+      // El usuario se unirá a una organización existente via invitación
 
       // Obtener información completa del usuario
       const { data: userData } = await supabase

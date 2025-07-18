@@ -152,7 +152,7 @@ export class InvitationService {
             name,
             slug
           ),
-          invited_by_user:users!organization_invitations_invited_by_fkey (
+          invited_by_user:users!invited_by (
             id,
             email,
             full_name

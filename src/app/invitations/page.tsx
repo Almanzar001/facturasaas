@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { InvitationService, OrganizationInvitation } from '@/services/invitations';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOrganization } from '@/contexts/OrganizationContext';
 
 // Simple SVG icons as fallback
 const BuildingOfficeIcon = ({ className }: { className?: string }) => (
@@ -33,7 +34,8 @@ const UserGroupIcon = ({ className }: { className?: string }) => (
 function InvitationsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const { refreshOrganizations } = useOrganization();
   const [invitation, setInvitation] = useState<OrganizationInvitation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
@@ -86,6 +88,11 @@ function InvitationsContent() {
       
       if (result.success) {
         setSuccess(true);
+        
+        // Refrescar el usuario y las organizaciones para obtener los datos actualizados
+        await refreshUser();
+        await refreshOrganizations();
+        
         setTimeout(() => {
           router.push('/dashboard');
         }, 2000);
@@ -165,18 +172,37 @@ function InvitationsContent() {
           <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
             <div className="text-center">
               <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
-              <h2 className="mt-4 text-xl font-bold text-gray-900">Inicia sesión para continuar</h2>
+              <h2 className="mt-4 text-xl font-bold text-gray-900">Accede para continuar</h2>
               <p className="mt-2 text-sm text-gray-600">
-                Debes iniciar sesión para aceptar esta invitación.
+                Para aceptar esta invitación, necesitas tener una cuenta.
               </p>
-              <div className="mt-6">
+              {invitation && (
+                <div className="mt-3 p-3 bg-blue-50 rounded-md">
+                  <p className="text-sm text-blue-800">
+                    <strong>Invitación a:</strong> {invitation.organization?.name}
+                  </p>
+                  <p className="text-xs text-blue-600">
+                    Email: {invitation.email}
+                  </p>
+                </div>
+              )}
+              <div className="mt-6 space-y-3">
                 <button
-                  onClick={() => router.push('/login')}
+                  onClick={() => router.push(`/register?redirect=/invitations?token=${token}`)}
                   className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
-                  Iniciar Sesión
+                  Crear Cuenta Nueva
+                </button>
+                <button
+                  onClick={() => router.push(`/login?redirect=/invitations?token=${token}`)}
+                  className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Ya tengo cuenta - Iniciar Sesión
                 </button>
               </div>
+              <p className="mt-4 text-xs text-gray-500">
+                Después de crear tu cuenta o iniciar sesión, serás redirigido automáticamente para aceptar la invitación.
+              </p>
             </div>
           </div>
         </div>

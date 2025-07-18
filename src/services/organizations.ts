@@ -309,10 +309,10 @@ class OrganizationService {
       .from('organization_members')
       .select(`
         *,
-        user:users!organization_members_user_id_fkey (
+        user:users!user_id (
           id,
           email,
-          name
+          full_name
         )
       `)
       .eq('organization_id', organizationId)
@@ -376,15 +376,15 @@ class OrganizationService {
       .from('organization_invitations')
       .select(`
         *,
-        organization:organizations!organization_invitations_organization_id_fkey (
+        organization:organizations!organization_id (
           id,
           name,
           slug
         ),
-        invited_by_user:users!organization_invitations_invited_by_fkey (
+        invited_by_user:users!invited_by (
           id,
           email,
-          name
+          full_name
         )
       `)
       .eq('token', token)
